@@ -12,7 +12,7 @@ st.set_page_config(
 
 # ---- HEADER ----
 st.title("Dynamic Hybrid Coach")
-st.subheader("Ton coach personnel — Entrainement Hybride")
+st.subheader("Ton coach personnel : Entrainement Hybride")
 st.divider()
 
 # ---- SIDEBAR ----
@@ -76,7 +76,7 @@ if page == "Check-in Matinal":
         }
 
         if sommeil < 6 or vfc < 45 or energie < 4:
-            st.warning("Ton niveau de recuperation est faible. L'IA va adapter ta seance.")
+            st.warning("Ton niveau de recuperation est faible. L'IA va adapter ta séance.")
         else:
             st.success("Check-in enregistre. Tu es en forme pour t'entrainer.")
 
@@ -141,7 +141,7 @@ elif page == "Ma Seance du Jour":
 # ---- PAGE 3 : STATS ----
 elif page == "Mes Stats":
     st.header("Mes Stats")
-    st.info("Le dashboard PowerBI sera connecte ici. En attendant, voici un apercu rapide.")
+    st.info("Le dashboard PowerBI sera connecte ici. En attendant, voici un apercu.")
 
     data_demo = {
         'Semaine': [1, 2, 3, 4, 5],
