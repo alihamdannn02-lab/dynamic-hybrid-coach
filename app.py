@@ -4,6 +4,7 @@ import numpy as np
 from datetime import datetime
 import gspread
 from google.oauth2.service_account import Credentials
+from streamlit_image_coordinates import streamlit_image_coordinates
 
 # ---- CONFIG ----
 st.set_page_config(
@@ -83,40 +84,69 @@ if page == "Check-in Matinal":
         vfc = st.slider("VFC (manuellement)", 20, 100, 55)
     with col3:
         energie = st.slider("Niveau d'energie", 1, 10, 7)
-        # Voici l'explication que tu voulais !
         st.caption("🔋 1-3: Épuisé | 4-6: Normal | 7-8: En forme | 9-10: Prêt à battre des records")
 
     st.divider()
     
-    st.subheader("Muscles douloureux aujourd'hui ?")
-    st.info("💡 La carte corporelle cliquable (Body Map) arrivera bientôt ! En attendant, coche tes courbatures :")
+    st.subheader("🗺️ Carte corporelle des douleurs")
+    st.write("Clique sur les zones musculaires où tu ressens des courbatures.")
 
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        ischios = st.checkbox("Ischios")
-        quadriceps = st.checkbox("Quadriceps")
-    with col2:
-        lombaires = st.checkbox("Lombaires")
-        epaules = st.checkbox("Epaules")
-    with col3:
-        pectoraux = st.checkbox("Pectoraux")
-        biceps = st.checkbox("Biceps")
-    with col4:
-        triceps = st.checkbox("Triceps")
-        mollets = st.checkbox("Mollets")
+    # On affiche l'image et on écoute les clics
+    value = streamlit_image_coordinates("body_map.png", width=350, key="body_map")
 
-    muscles_douloureux = []
-    if ischios: muscles_douloureux.append("Ischios")
-    if quadriceps: muscles_douloureux.append("Quadriceps")
-    if lombaires: muscles_douloureux.append("Lombaires")
-    if epaules: muscles_douloureux.append("Epaules")
-    if pectoraux: muscles_douloureux.append("Pectoraux")
-    if biceps: muscles_douloureux.append("Biceps")
-    if triceps: muscles_douloureux.append("Triceps")
-    if mollets: muscles_douloureux.append("Mollets")
+    # Initialisation de la mémoire pour accumuler les clics
+    if 'muscles_selectionnes' not in st.session_state:
+        st.session_state['muscles_selectionnes'] = []
+
+    muscle_identifie = None
+
+    if value is not None:
+        x = value['x']
+        y = value['y']
+        
+        # Ce petit texte est crucial pour TOI : c'est lui qui te donne les coordonnées
+        st.caption(f"📍 Clic détecté : X={x}, Y={y}")
+
+        # --- DÉBUT DE LA CALIBRATION ---
+        # Tu devras ajuster ces chiffres en regardant les X et Y affichés !
+        
+        # --- FACE AVANT ---
+        if 90 < x < 150 and 70 < y < 110:
+            muscle_identifie = "Pectoraux"
+        elif 90 < x < 150 and 110 < y < 160:
+            muscle_identifie = "Abdominaux"
+        elif 90 < x < 150 and 180 < y < 250:
+            muscle_identifie = "Quadriceps"
+        elif (40 < x < 80 or 160 < x < 200) and 120 < y < 170:
+            muscle_identifie = "Bras (Face)"
+        
+        # --- FACE ARRIÈRE ---
+        elif 220 < x < 280 and 70 < y < 160:
+            muscle_identifie = "Dos"
+        elif 220 < x < 280 and 180 < y < 250:
+            muscle_identifie = "Ischios"
+        elif 220 < x < 280 and 260 < y < 320:
+            muscle_identifie = "Mollets"
+        elif (190 < x < 220 or 280 < x < 310) and 120 < y < 170:
+            muscle_identifie = "Bras (Dos)"
+
+        # Si un muscle a été trouvé, on l'ajoute à la liste s'il n'y est pas déjà
+        if muscle_identifie and muscle_identifie not in st.session_state['muscles_selectionnes']:
+            st.session_state['muscles_selectionnes'].append(muscle_identifie)
+
+    muscles_douloureux = st.session_state['muscles_selectionnes']
+
+    if muscles_douloureux:
+        st.info(f" Muscles ciblés : {', '.join(muscles_douloureux)}")
+        if st.button("🗑️ Effacer la sélection"):
+            st.session_state['muscles_selectionnes'] = []
+            st.rerun()
+    else:
+        st.caption("Aucun muscle sélectionné.")
 
     st.divider()
 
+    # LE BOUTON VALIDER QU'IL FALLAIT GARDER :
     if st.button("Valider mon Check-in", type="primary"):
         date_du_jour = datetime.now().strftime("%Y-%m-%d")
         muscles_str = ", ".join(muscles_douloureux) if muscles_douloureux else "Aucun"
@@ -133,10 +163,10 @@ if page == "Check-in Matinal":
         try:
             # On envoie à Google Sheets
             save_checkin(nouvelle_ligne_checkin)
-            st.success("✅ Check-in enregistré dans la base de données ! Tu es prêt pour ta journée.")
+            st.success(" Check-in enregistré dans la base de données ! Tu es prêt pour ta journée.")
             
             if sommeil < 6 or vfc < 45 or energie < 4:
-                st.warning("⚠️ Ton niveau de récupération est faible. L'IA va adapter ta séance.")
+                st.warning(" Ton niveau de récupération est faible ! L'IA va adapter ta séance.")
             
         except Exception as e:
             st.error(f"Erreur lors de la sauvegarde : {e}")
