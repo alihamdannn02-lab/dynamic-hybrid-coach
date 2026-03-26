@@ -82,10 +82,14 @@ if page == "Check-in Matinal":
     with col2:
         vfc = st.slider("VFC (manuellement)", 20, 100, 55)
     with col3:
-        energie = st.slider("Niveau d'energie (1-10)", 1, 10, 7)
+        energie = st.slider("Niveau d'energie", 1, 10, 7)
+        # Voici l'explication que tu voulais !
+        st.caption("🔋 1-3: Épuisé | 4-6: Normal | 7-8: En forme | 9-10: Prêt à battre des records")
 
     st.divider()
+    
     st.subheader("Muscles douloureux aujourd'hui ?")
+    st.info("💡 La carte corporelle cliquable (Body Map) arrivera bientôt ! En attendant, coche tes courbatures :")
 
     col1, col2, col3, col4 = st.columns(4)
     with col1:
@@ -114,21 +118,28 @@ if page == "Check-in Matinal":
     st.divider()
 
     if st.button("Valider mon Check-in", type="primary"):
-        st.session_state['checkin'] = {
-            'sommeil': sommeil,
-            'vfc': vfc,
-            'energie': energie,
-            'muscles_douloureux': muscles_douloureux,
-            'date': datetime.now().strftime('%Y-%m-%d')
-        }
+        date_du_jour = datetime.now().strftime("%Y-%m-%d")
+        muscles_str = ", ".join(muscles_douloureux) if muscles_douloureux else "Aucun"
+        
+        # On prépare la ligne propre pour Google Sheets
+        nouvelle_ligne_checkin = [
+            date_du_jour, 
+            float(sommeil), 
+            int(vfc), 
+            int(energie), 
+            str(muscles_str)
+        ]
 
-        if sommeil < 6 or vfc < 45 or energie < 4:
-            st.warning("Ton niveau de recuperation est faible. L'IA va adapter ta seance.")
-        else:
-            st.success("Check-in enregistre. Tu es en forme pour t'entrainer.")
-
-        if muscles_douloureux:
-            st.info(f"Muscles douloureux : {', '.join(muscles_douloureux)}")
+        try:
+            # On envoie à Google Sheets
+            save_checkin(nouvelle_ligne_checkin)
+            st.success("✅ Check-in enregistré dans la base de données ! Tu es prêt pour ta journée.")
+            
+            if sommeil < 6 or vfc < 45 or energie < 4:
+                st.warning("⚠️ Ton niveau de récupération est faible. L'IA va adapter ta séance.")
+            
+        except Exception as e:
+            st.error(f"Erreur lors de la sauvegarde : {e}")
 
 # ---- PAGE 2 : SEANCE DU JOUR ----
 elif page == "Ma Seance du Jour":
