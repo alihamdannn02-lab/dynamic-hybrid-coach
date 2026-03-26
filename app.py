@@ -178,7 +178,26 @@ elif page == "Ma Seance du Jour":
                     rir = st.session_state[f"rir_{exo}"]
                     rpe_serie = 10 - rir
                     
-                    nouvelle_ligne = [date_du_jour, semaine, jour, type_seance, exo, poids, reps, rir, rpe_serie, session_rpe]
+                    # On s'assure que TOUT est dans un format que Google Sheets comprend (int, float, ou str)
+                    semaine_clean = int(semaine)
+                    poids_clean = float(poids)
+                    reps_clean = int(reps)
+                    rir_clean = int(rir)
+                    rpe_serie_clean = int(rpe_serie)
+                    session_rpe_clean = int(session_rpe)
+                    
+                    nouvelle_ligne = [
+                        date_du_jour, 
+                        semaine_clean, 
+                        str(jour), 
+                        str(type_seance), 
+                        str(exo), 
+                        poids_clean, 
+                        reps_clean, 
+                        rir_clean, 
+                        rpe_serie_clean, 
+                        session_rpe_clean
+                    ]
                     lignes_a_sauvegarder.append(nouvelle_ligne)
                 
                 save_performance(lignes_a_sauvegarder)
