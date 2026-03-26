@@ -137,7 +137,7 @@ if page == "Check-in Matinal":
     muscles_douloureux = st.session_state['muscles_selectionnes']
 
     if muscles_douloureux:
-        st.info(f" Muscles ciblés : {', '.join(muscles_douloureux)}")
+        st.info(f"🩹 Muscles ciblés : {', '.join(muscles_douloureux)}")
         if st.button("🗑️ Effacer la sélection"):
             st.session_state['muscles_selectionnes'] = []
             st.rerun()
@@ -166,11 +166,11 @@ if page == "Check-in Matinal":
             st.success(" Check-in enregistré dans la base de données ! Tu es prêt pour ta journée.")
             
             if sommeil < 6 or vfc < 45 or energie < 4:
-                st.warning(" Ton niveau de récupération est faible ! L'IA va adapter ta séance.")
+                st.warning(" Ton niveau de récupération est faible. L'IA va adapter ta séance.")
             
         except Exception as e:
             st.error(f"Erreur lors de la sauvegarde : {e}")
-
+            
 # ---- PAGE 2 : SEANCE DU JOUR ----
 elif page == "Ma Seance du Jour":
     st.header("Ma Seance du Jour")
