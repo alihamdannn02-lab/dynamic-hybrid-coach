@@ -4,3 +4,4 @@ numpy
 gspread
 google-auth
 openai
+streamlit-image-coordinates
