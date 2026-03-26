@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 from datetime import datetime
+import gspread
+from google.oauth2.service_account import Credentials
 
 # ---- CONFIG ----
 st.set_page_config(
@@ -9,6 +11,28 @@ st.set_page_config(
     page_icon="",
     layout="wide"
 )
+
+# ---- CONNEXION GOOGLE SHEETS ----
+@st.cache_resource
+def connect_sheets():
+    scopes = [
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive"
+    ]
+    creds = Credentials.from_service_account_info(
+        st.secrets["gcp_service_account"],
+        scopes=scopes
+    )
+    client = gspread.authorize(creds)
+    return client
+
+@st.cache_data(ttl=300)
+def load_programme():
+    client = connect_sheets()
+    sheet = client.open("DB_Dynamic_Hybrid_Coach")
+    worksheet = sheet.get_worksheet(0)
+    data = worksheet.get_all_records()
+    return pd.DataFrame(data)
 
 # ---- HEADER ----
 st.title("Dynamic Hybrid Coach")
@@ -29,7 +53,6 @@ if page == "Check-in Matinal":
     st.write("Comment tu te sens ce matin ?")
 
     col1, col2, col3 = st.columns(3)
-
     with col1:
         sommeil = st.slider("Heures de sommeil", 0.0, 12.0, 7.0, 0.5)
     with col2:
@@ -76,89 +99,90 @@ if page == "Check-in Matinal":
         }
 
         if sommeil < 6 or vfc < 45 or energie < 4:
-            st.warning("Ton niveau de recuperation est faible. L'IA va adapter ta séance.")
+            st.warning("Ton niveau de recuperation est faible. L'IA va adapter ta seance.")
         else:
             st.success("Check-in enregistre. Tu es en forme pour t'entrainer.")
 
         if muscles_douloureux:
-            st.info(f"Muscles douloureux detectes : {', '.join(muscles_douloureux)}")
+            st.info(f"Muscles douloureux : {', '.join(muscles_douloureux)}")
 
 # ---- PAGE 2 : SEANCE DU JOUR ----
 elif page == "Ma Seance du Jour":
     st.header("Ma Seance du Jour")
-    st.write("Selectionne ta seance et enregistre tes performances.")
 
-    type_seance = st.selectbox("Type de seance", [
-        "Upper_Body_1",
-        "Lower_Body",
-        "Calisthenics_Grip",
-        "Hybrid_Conditioning",
-        "Upper_Body_2",
-        "Endurance",
-        "Repos"
-    ])
+    try:
+        df = load_programme()
 
-    st.divider()
+        jour_options = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
+        jour_actuel = datetime.now().strftime("%A")
+        jours_fr = {"Monday": "Lundi", "Tuesday": "Mardi", "Wednesday": "Mercredi",
+                    "Thursday": "Jeudi", "Friday": "Vendredi", "Saturday": "Samedi", "Sunday": "Dimanche"}
+        jour_defaut = jours_fr.get(jour_actuel, "Lundi")
 
-    if type_seance in ["Upper_Body_1", "Lower_Body", "Calisthenics_Grip", "Upper_Body_2"]:
-        st.subheader("Saisie Musculation")
-
-        exercice = st.text_input("Exercice")
-        col1, col2, col3 = st.columns(3)
+        col1, col2 = st.columns(2)
         with col1:
-            poids = st.number_input("Poids reel (kg)", min_value=0.0, step=0.5)
+            semaine = st.selectbox("Semaine", sorted(df["Semaine"].unique()))
         with col2:
-            reps = st.number_input("Repetitions", min_value=0, step=1)
-        with col3:
-            rir = st.selectbox("RIR (reps en reserve)", [0, 1, 2, 3, 4])
+            jour = st.selectbox("Jour", jour_options, index=jour_options.index(jour_defaut))
 
-        rpe = 10 - rir
-        st.metric("RPE calcule automatiquement", f"{rpe} / 10")
+        seance_df = df[(df["Semaine"] == semaine) & (df["Jour"] == jour)]
 
-    elif type_seance == "Hybrid_Conditioning":
-        st.subheader("Saisie WOD / Hyrox")
+        if seance_df.empty:
+            st.info("Aucune seance prevue ce jour.")
+        else:
+            type_seance = seance_df["Type_Seance"].iloc[0]
+            st.subheader(f"Seance : {type_seance}")
+            st.divider()
 
-        format_seance = st.radio("Format", ["Solo", "Duo", "Team"])
-        tags = st.multiselect("Mouvements effectues", [
-            "Rameur", "SkiErg", "BikeErg", "Sled Push", "Sled Pull",
-            "Burpees", "Wall Balls", "Farmers Carry", "Course",
-            "Sandbag", "Box Jump", "Double Unders"
-        ])
-        pace = st.text_input("Pace / Watts moyens (optionnel)", placeholder="ex: 1:55 /500m ou 220W")
+            for _, row in seance_df.iterrows():
+                with st.expander(f"{row['Exercice_WOD']} — {row['Series_Cible']} series x {row['Reps_Cible']} reps @ {row['Poids_Cible_Kg']} kg"):
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        poids_reel = st.number_input(f"Poids reel (kg)", min_value=0.0, step=0.5, key=f"poids_{row['Exercice_WOD']}")
+                    with col2:
+                        reps_reelles = st.number_input(f"Reps reelles", min_value=0, step=1, key=f"reps_{row['Exercice_WOD']}")
+                    with col3:
+                        rir = st.selectbox(f"RIR", [0, 1, 2, 3, 4], key=f"rir_{row['Exercice_WOD']}")
+                    rpe = 10 - rir
+                    st.metric("RPE", f"{rpe} / 10")
 
-    elif type_seance == "Endurance":
-        st.subheader("Saisie Course / Cardio")
-        duree = st.number_input("Duree (minutes)", min_value=0, step=5)
-        pace = st.text_input("Allure moyenne", placeholder="ex: 5:30 min/km")
+            st.divider()
+            session_rpe = st.slider("Note globale de la seance (1-10)", 1, 10, 7)
 
-    st.divider()
-    session_rpe = st.slider("Session RPE — Note globale de la seance (1-10)", 1, 10, 7)
+            if st.button("Enregistrer la seance", type="primary"):
+                st.success("Seance enregistree.")
+                st.balloons()
 
-    if st.button("Enregistrer la seance", type="primary"):
-        st.success("Seance enregistree avec succes.")
-        st.balloons()
+    except Exception as e:
+        st.error(f"Erreur de connexion au Google Sheets : {e}")
 
 # ---- PAGE 3 : STATS ----
 elif page == "Mes Stats":
     st.header("Mes Stats")
-    st.info("Le dashboard PowerBI sera connecte ici. En attendant, voici un apercu.")
 
-    data_demo = {
-        'Semaine': [1, 2, 3, 4, 5],
-        'Session_RPE_Moyen': [7.2, 7.8, 6.9, 8.1, 7.5],
-        'Sommeil_Moyen': [7.1, 6.8, 7.5, 6.2, 7.3],
-        'VFC_Moyen': [55, 52, 58, 48, 56]
-    }
-    df_demo = pd.DataFrame(data_demo)
+    try:
+        df = load_programme()
+        st.success(f"Google Sheets connecte — {len(df)} exercices charges.")
 
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("RPE Moyen (semaine)", "7.5", "+0.3")
-    with col2:
-        st.metric("Sommeil Moyen", "7.2h", "-0.3h")
-    with col3:
-        st.metric("VFC Moyen", "55 ms", "+3ms")
+        data_demo = {
+            'Semaine': [1, 2, 3, 4, 5],
+            'Session_RPE_Moyen': [7.2, 7.8, 6.9, 8.1, 7.5],
+            'Sommeil_Moyen': [7.1, 6.8, 7.5, 6.2, 7.3],
+            'VFC_Moyen': [55, 52, 58, 48, 56]
+        }
+        df_demo = pd.DataFrame(data_demo)
 
-    st.divider()
-    st.subheader("Tendance RPE vs Sommeil")
-    st.line_chart(df_demo.set_index('Semaine')[['Session_RPE_Moyen', 'Sommeil_Moyen']])
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("RPE Moyen", "7.5", "+0.3")
+        with col2:
+            st.metric("Sommeil Moyen", "7.2h", "-0.3h")
+        with col3:
+            st.metric("VFC Moyen", "55 ms", "+3ms")
+
+        st.divider()
+        st.subheader("Tendance RPE vs Sommeil")
+        st.line_chart(df_demo.set_index('Semaine')[['Session_RPE_Moyen', 'Sommeil_Moyen']])
+
+    except Exception as e:
+        st.error(f"Erreur de connexion au Google Sheets : {e}")
