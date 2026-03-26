@@ -13,16 +13,26 @@ st.set_page_config(
 )
 
 # ---- CONNEXION GOOGLE SHEETS ----
+
 @st.cache_resource
 def connect_sheets():
     scopes = [
         "https://www.googleapis.com/auth/spreadsheets",
         "https://www.googleapis.com/auth/drive"
     ]
+    
+    # 1. On récupère les secrets en tant que dictionnaire modifiable
+    credentials_dict = dict(st.secrets["gcp_service_account"])
+    
+    # 2. LA LIGNE MAGIQUE : on remplace les faux retours à la ligne par de vrais retours à la ligne
+    credentials_dict["private_key"] = credentials_dict["private_key"].replace("\\n", "\n")
+    
+    # 3. On crée les "creds" avec le dictionnaire corrigé
     creds = Credentials.from_service_account_info(
-        st.secrets["gcp_service_account"],
+        credentials_dict,
         scopes=scopes
     )
+    
     client = gspread.authorize(creds)
     return client
 
