@@ -164,15 +164,35 @@ elif page == "Ma Seance du Jour":
                     rpe = 10 - rir
                     st.metric("RPE", f"{rpe} / 10")
 
-            st.divider()
+           st.divider()
             session_rpe = st.slider("Note globale de la seance (1-10)", 1, 10, 7)
 
             if st.button("Enregistrer la seance", type="primary"):
-                st.success("Seance enregistree.")
-                st.balloons()
+                lignes_a_sauvegarder = []
+                date_du_jour = datetime.now().strftime("%Y-%m-%d")
 
-    except Exception as e:
-        st.error(f"Erreur de connexion au Google Sheets : {e}")
+                # On boucle sur chaque exercice pour récupérer ce que tu as tapé
+                for _, row in seance_df.iterrows():
+                    exo = row['Exercice_WOD']
+                    
+                    # On récupère les valeurs depuis la mémoire (session_state) grâce aux "keys"
+                    poids = st.session_state[f"poids_{exo}"]
+                    reps = st.session_state[f"reps_{exo}"]
+                    rir = st.session_state[f"rir_{exo}"]
+                    rpe_serie = 10 - rir
+                    
+                    # On prépare la ligne dans l'ordre exact de nos colonnes Google Sheets
+                    nouvelle_ligne = [
+                        date_du_jour, semaine, jour, type_seance, exo, 
+                        poids, reps, rir, rpe_serie, session_rpe
+                    ]
+                    lignes_a_sauvegarder.append(nouvelle_ligne)
+                
+                # On envoie tout à Google Sheets !
+                save_performance(lignes_a_sauvegarder)
+                
+                st.success("Séance enregistrée avec succès!!")
+                st.balloons()
 
 # ---- PAGE 3 : STATS ----
 elif page == "Mes Stats":
