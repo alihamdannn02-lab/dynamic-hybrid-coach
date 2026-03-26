@@ -147,7 +147,7 @@ elif page == "Ma Seance du Jour":
 
         if seance_df.empty:
             st.info("Aucune seance prevue ce jour.")
-else:
+        else:
             type_seance = seance_df["Type_Seance"].iloc[0]
             st.subheader(f"Seance : {type_seance}")
             st.divider()
