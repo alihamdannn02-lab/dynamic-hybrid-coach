@@ -44,6 +44,14 @@ def load_programme():
     data = worksheet.get_all_records()
     return pd.DataFrame(data)
 
+def save_performance(lignes_donnees):
+    client = connect_sheets()
+    sheet = client.open("DB_Dynamic_Hybrid_Coach")
+    # On cible le nouvel onglet qu'on vient de créer
+    worksheet = sheet.worksheet("Historique_Realise")
+    # On ajoute toutes les lignes d'un coup
+    worksheet.append_rows(lignes_donnees)
+
 # ---- HEADER ----
 st.title("Dynamic Hybrid Coach")
 st.subheader("Ton coach personnel : Entrainement Hybride")
