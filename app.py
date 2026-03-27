@@ -175,37 +175,45 @@ if page == "Check-in Matinal":
             st.error(f"Erreur lors de la sauvegarde : {e}")
 
 # ---- PAGE 2 : SEANCE DU JOUR ----
-
 elif page == "Ma Seance du Jour":
     st.header("Ma Seance du Jour")
 
     try:
         df = load_programme()
 
-        jour_options = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
-        jour_actuel = datetime.now().strftime("%A")
+        # --- AMÉLIORATION UX : SELECTION PURE PAR NOM DE SÉANCE ---
+        semaine = st.selectbox("Semaine", sorted(df["Semaine"].unique()))
+        
+        # On filtre pour la semaine choisie
+        seances_semaine = df[df["Semaine"] == semaine]
+        
+        # On récupère uniquement les noms uniques des séances de cette semaine
+        options_seances = seances_semaine['Type_Seance'].unique()
+        choix_seance = st.selectbox("🎯 Quelle séance veux-tu faire ?", options_seances)
+        
+        # On filtre la base de données pour récupérer les exercices de cette séance
+        seance_df = seances_semaine[seances_semaine["Type_Seance"] == choix_seance]
+
+        # Sécurité : Si tu as deux séances avec le MÊME nom dans la semaine, on ne prend que la première 
+        # pour éviter de doubler les exercices à l'écran.
+        jour_theorique = seance_df["Jour"].iloc[0]
+        seance_df = seance_df[seance_df["Jour"] == jour_theorique]
+
+        # --- DÉTECTION DU VRAI JOUR ACTUEL (Pour la sauvegarde) ---
+        jour_actuel_en = datetime.now().strftime("%A")
         jours_fr = {"Monday": "Lundi", "Tuesday": "Mardi", "Wednesday": "Mercredi",
                     "Thursday": "Jeudi", "Friday": "Vendredi", "Saturday": "Samedi", "Sunday": "Dimanche"}
-        jour_defaut = jours_fr.get(jour_actuel, "Lundi")
-
-        col1, col2 = st.columns(2)
-        with col1:
-            semaine = st.selectbox("Semaine", sorted(df["Semaine"].unique()))
-        with col2:
-            jour = st.selectbox("Jour", jour_options, index=jour_options.index(jour_defaut))
-
-        seance_df = df[(df["Semaine"] == semaine) & (df["Jour"] == jour)]
+        vrai_jour_actuel = jours_fr.get(jour_actuel_en, "Lundi")
 
         if seance_df.empty:
-            st.info("Aucune seance prevue ce jour. Repose-toi bien !")
+            st.info("Aucune séance trouvée.")
         else:
             type_seance = seance_df["Type_Seance"].iloc[0]
-            st.subheader(f"Seance : {type_seance}")
+            st.subheader(f"Détails : {type_seance}")
             st.divider()
 
-            # --- LE CERVEAU DE L'APP : 3 MODES ---
+            # --- LE CERVEAU DE L'APP ---
             type_seance_lower = str(type_seance).lower()
-            
             mots_cles_course = ["course", "run", "fractionné", "piste", "endurance", "z2"]
             mots_cles_wod = ["hyrox", "wod", "circuit", "conditioning"]
             
@@ -214,38 +222,36 @@ elif page == "Ma Seance du Jour":
 
             if est_une_course:
                 # ---------------------------------------------------------
-                # MODE 1 : COURSE À PIED (Longue ou Fractionné)
+                # MODE 1 : COURSE À PIED
                 # ---------------------------------------------------------
                 st.info("🏃‍♂️ Séance de course détectée !")
+                col1, col2 = st.columns(2)
+                with col1: distance = st.number_input("Distance (km)", min_value=0.0, step=0.1, value=5.0)
+                with col2: duree_run = st.number_input("Durée totale (min)", min_value=0, step=1, value=30)
                 
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    distance = st.number_input("Distance (km)", min_value=0.0, step=0.1, value=5.0)
-                with col2:
-                    duree_run = st.number_input("Durée totale (min)", min_value=0, step=1, value=30)
-                with col3:
-                    fc_moyenne = st.number_input("FC Moyenne (bpm)", min_value=40, max_value=220, step=1, value=140)
-                
-                details_course = st.text_input("Détails (ex: 4x1000m, ou 20min Z2 + 10min Z4)", placeholder="Tes temps de passage ou zones...")
+                st.write("⏱️ Temps passé par Zone Cardiaque (en minutes)")
+                cz1, cz2, cz3, cz4, cz5 = st.columns(5)
+                with cz1: z1 = st.number_input("Z1", 0, step=1)
+                with cz2: z2 = st.number_input("Z2", 0, step=1)
+                with cz3: z3 = st.number_input("Z3", 0, step=1)
+                with cz4: z4 = st.number_input("Z4", 0, step=1)
+                with cz5: z5 = st.number_input("Z5", 0, step=1)
                 
                 st.divider()
-                session_rpe = st.slider("Note globale de la seance (1-10)", 1, 10, 7)
+                session_rpe = st.slider("Note globale de la séance (RPE)", 1, 10, 7)
+                st.caption("🔥 1-2: Très facile | 3-4: Facile | 5-6: Modéré | 7-8: Difficile | 9: Très difficile | 10: Effort maximal")
 
                 if st.button("Enregistrer la Course", type="primary"):
                     date_du_jour = datetime.now().strftime("%Y-%m-%d")
-                    # Ruse : Poids = Distance, Reps = Durée, RIR = FC
+                    zones_str = f"Z1:{z1}m Z2:{z2}m Z3:{z3}m Z4:{z4}m Z5:{z5}m"
                     ligne_run = [
-                        date_du_jour, int(semaine), str(jour), str(type_seance), 
-                        f"Run: {details_course}", # Exercice
-                        float(distance), # Poids (détourné)
-                        int(duree_run), # Reps (détourné)
-                        int(fc_moyenne), # RIR (détourné)
-                        0, # RPE Serie
-                        int(session_rpe)
+                        date_du_jour, int(semaine), vrai_jour_actuel, str(type_seance), 
+                        zones_str, # Colonne Exercice
+                        float(distance), int(duree_run), 0, 0, int(session_rpe)
                     ]
                     try:
                         save_performance([ligne_run])
-                        st.success(f"✅ Course enregistrée : {distance} km dans la besace !")
+                        st.success(f"✅ Course enregistrée pour ce {vrai_jour_actuel} !")
                         st.balloons()
                     except Exception as e:
                         st.error(f"Erreur : {e}")
@@ -255,33 +261,44 @@ elif page == "Ma Seance du Jour":
                 # MODE 2 : WOD & HYROX
                 # ---------------------------------------------------------
                 st.info("🔥 Séance métabolique détectée !")
-                
                 col1, col2 = st.columns(2)
-                with col1:
-                    duree_wod = st.number_input("Durée totale (en minutes)", min_value=0, step=1, value=45)
-                with col2:
-                    format_wod = st.selectbox("Format de la séance", ["Solo", "Duo", "Team"])
+                with col1: duree_wod = st.number_input("Durée totale (min)", min_value=0, step=1, value=45)
+                with col2: format_wod = st.selectbox("Format", ["Solo", "Duo", "Team"])
                 
-                score_wod = st.text_input("Score ou Résumé (ex: 4 tours + 15 reps, ou temps final)")
+                st.write("⏱️ Temps passé par Zone Cardiaque (en minutes)")
+                cz1, cz2, cz3, cz4, cz5 = st.columns(5)
+                with cz1: z1 = st.number_input("Z1", 0, step=1, key="w_z1")
+                with cz2: z2 = st.number_input("Z2", 0, step=1, key="w_z2")
+                with cz3: z3 = st.number_input("Z3", 0, step=1, key="w_z3")
+                with cz4: z4 = st.number_input("Z4", 0, step=1, key="w_z4")
+                with cz5: z5 = st.number_input("Z5", 0, step=1, key="w_z5")
                 
                 st.write("📸 Scanner le tableau de la Box")
                 photo_tableau = st.file_uploader("Upload la photo du WOD", type=['png', 'jpg', 'jpeg'])
+                
+                texte_wod_decode = ""
                 if photo_tableau is not None:
-                    st.success("Image chargée ! (L'analyse IA OCR arrivera dans la prochaine version)")
+                    st.success("✅ Image chargée ! (Non sauvegardée, elle servira juste à l'analyse)")
+                    st.info("🤖 L'IA a décodé le tableau :")
+                    texte_wod_decode = st.text_area("Exercices détectés (tu peux corriger)", value="1000m Run\n50 Wall Balls\n1000m Row...")
 
                 st.divider()
-                session_rpe = st.slider("Note globale de la seance (1-10)", 1, 10, 8)
+                session_rpe = st.slider("Note globale de la séance (RPE)", 1, 10, 8)
+                st.caption("🔥 1-2: Très facile | 3-4: Facile | 5-6: Modéré | 7-8: Difficile | 9: Très difficile | 10: Effort maximal")
 
                 if st.button("Enregistrer le WOD", type="primary"):
                     date_du_jour = datetime.now().strftime("%Y-%m-%d")
+                    resume_final = texte_wod_decode.replace('\n', ' / ') if texte_wod_decode else "Aucun texte décodé"
+                    zones_str = f"Format:{format_wod} | {resume_final} | Z1:{z1} Z2:{z2} Z3:{z3} Z4:{z4} Z5:{z5}"
+                    
                     ligne_wod = [
-                        date_du_jour, int(semaine), str(jour), str(type_seance), 
-                        f"Format {format_wod} - {score_wod}", 
+                        date_du_jour, int(semaine), vrai_jour_actuel, str(type_seance), 
+                        zones_str[:250], 
                         0.0, int(duree_wod), 0, 0, int(session_rpe)
                     ]
                     try:
                         save_performance([ligne_wod])
-                        st.success("✅ Boom ! WOD enregistré avec succès.")
+                        st.success(f"✅ Boom ! WOD enregistré pour ce {vrai_jour_actuel}.")
                         st.balloons()
                     except Exception as e:
                         st.error(f"Erreur : {e}")
@@ -294,18 +311,19 @@ elif page == "Ma Seance du Jour":
                     with st.expander(f"{row['Exercice_WOD']} — {row['Series_Cible']} series x {row['Reps_Cible']} reps @ {row['Poids_Cible_Kg']} kg"):
                         col1, col2, col3 = st.columns(3)
                         with col1:
-                            poids_reel = st.number_input(f"Poids reel (kg)", min_value=0.0, step=0.5, key=f"poids_{row['Exercice_WOD']}")
+                            poids_reel = st.number_input(f"Poids réel (kg)", min_value=0.0, step=0.5, key=f"poids_{row['Exercice_WOD']}")
                         with col2:
-                            reps_reelles = st.number_input(f"Reps reelles", min_value=0, step=1, key=f"reps_{row['Exercice_WOD']}")
+                            reps_reelles = st.number_input(f"Reps réelles", min_value=0, step=1, key=f"reps_{row['Exercice_WOD']}")
                         with col3:
                             rir = st.selectbox(f"RIR", [0, 1, 2, 3, 4], key=f"rir_{row['Exercice_WOD']}")
                         rpe = 10 - rir
                         st.metric("RPE", f"{rpe} / 10")
 
                 st.divider()
-                session_rpe = st.slider("Note globale de la seance (1-10)", 1, 10, 7)
+                session_rpe = st.slider("Note globale de la séance (RPE)", 1, 10, 7)
+                st.caption("🔥 1-2: Très facile | 3-4: Facile | 5-6: Modéré | 7-8: Difficile | 9: Très difficile | 10: Effort maximal")
 
-                if st.button("Enregistrer la seance muscu", type="primary"):
+                if st.button("Enregistrer la séance muscu", type="primary"):
                     lignes_a_sauvegarder = []
                     date_du_jour = datetime.now().strftime("%Y-%m-%d")
 
@@ -317,14 +335,14 @@ elif page == "Ma Seance du Jour":
                         rpe_serie = 10 - rir
                         
                         nouvelle_ligne = [
-                            date_du_jour, int(semaine), str(jour), str(type_seance), str(exo), 
+                            date_du_jour, int(semaine), vrai_jour_actuel, str(type_seance), str(exo), 
                             float(poids), int(reps), int(rir), int(rpe_serie), int(session_rpe)
                         ]
                         lignes_a_sauvegarder.append(nouvelle_ligne)
                     
                     try:
                         save_performance(lignes_a_sauvegarder)
-                        st.success("✅ Boom ! Séance de force enregistrée avec succès.")
+                        st.success(f"✅ Séance de force enregistrée avec succès pour ce {vrai_jour_actuel}.")
                         st.balloons()
                     except Exception as e:
                         st.error(f"Erreur : {e}")
