@@ -89,88 +89,123 @@ if page == "Check-in Matinal":
     st.divider()
     
     st.subheader("🗺️ Carte corporelle des douleurs")
-    st.write("Clique sur les zones musculaires où tu ressens des courbatures.")
+    st.write("Clique sur les zones musculaires précises où tu ressens des courbatures.")
 
-    # On affiche l'image et on écoute les clics
-    value = streamlit_image_coordinates("body_map.png", width=350, key="body_map")
-
-    # Initialisation de la mémoire pour accumuler les clics
+    # INITIALISATION DES MÉMOIRES (Session State)
     if 'muscles_selectionnes' not in st.session_state:
         st.session_state['muscles_selectionnes'] = []
+    # Mémoire de sécurité pour éviter le bug de l'effacement
+    if 'dernier_clic' not in st.session_state:
+        st.session_state['dernier_clic'] = None
+
+    # AFFICHAGE DE L'IMAGE (Largeur augmentée à 600 pour plus de confort)
+    # Important : on utilise une nouvelle 'key' pour reset le composant
+    value = streamlit_image_coordinates("body_map.png", width=600, key="body_map_v2")
 
     muscle_identifie = None
 
     if value is not None:
-        x = value['x']
-        y = value['y']
+        coords_actuelles = (value['x'], value['y'])
         
-        # Ce petit texte est crucial pour TOI : c'est lui qui te donne les coordonnées
-        st.caption(f"📍 Clic détecté : X={x}, Y={y}")
+        # SÉCURITÉ : On ne traite le clic que s'il est NOUVEAU
+        if coords_actuelles != st.session_state['dernier_clic']:
+            # On enregistre ce clic comme étant le dernier traité
+            st.session_state['dernier_clic'] = coords_actuelles
+            x, y = coords_actuelles
+            
+            # Ce texte te permet de calibrer, ne l'enlève pas tout de suite !
+            st.caption(f"📍 Clic détecté : X={x}, Y={y}")
 
-        # --- DÉBUT DE LA CALIBRATION ---
-        # Tu devras ajuster ces chiffres en regardant les X et Y affichés !
-        
-        # --- FACE AVANT ---
-        if 90 < x < 150 and 70 < y < 110:
-            muscle_identifie = "Pectoraux"
-        elif 90 < x < 150 and 110 < y < 160:
-            muscle_identifie = "Abdominaux"
-        elif 90 < x < 150 and 180 < y < 250:
-            muscle_identifie = "Quadriceps"
-        elif (40 < x < 80 or 160 < x < 200) and 120 < y < 170:
-            muscle_identifie = "Bras (Face)"
-        
-        # --- FACE ARRIÈRE ---
-        elif 220 < x < 280 and 70 < y < 160:
-            muscle_identifie = "Dos"
-        elif 220 < x < 280 and 180 < y < 250:
-            muscle_identifie = "Ischios"
-        elif 220 < x < 280 and 260 < y < 320:
-            muscle_identifie = "Mollets"
-        elif (190 < x < 220 or 280 < x < 310) and 120 < y < 170:
-            muscle_identifie = "Bras (Dos)"
+            # --- DÉBUT DE LA CALIBRATION ULTRA-DÉTAILLÉE ---
+            #⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️
+            # TOUS LES CHIFFRES CI-DESSOUS SONT DES EXEMPLES (basés sur width=600)
+            # TU DOIS LES REMPLACER PAR TES VRAIES COORDONNÉES !
+            #⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️
+            
+            # --- STRUCTURE DE LA LOGIQUE ---
+            # Pour width=600, la face avant est approx (x < 300) et la face arrière (x > 300)
+            
+            # --- FACE AVANT (approx x < 300) ---
+            if x < 300:
+                if y < 50: muscle_identifie = "Cou / Trapèzes sup"
+                elif 50 < y < 80:
+                    if (80 < x < 130) or (170 < x < 220): muscle_identifie = "Épaules (Shoulders)"
+                    elif 130 < x < 170: muscle_identifie = "Pectoraux (Haut)"
+                elif 80 < y < 120:
+                    if 130 < x < 170: muscle_identifie = "Pectoraux (Bas)"
+                elif 120 < y < 180:
+                    if 130 < x < 170: muscle_identifie = "Abdominaux"
+                    elif (100 < x < 130) or (170 < x < 200): muscle_identifie = "Obliques"
+                elif 180 < y < 220:
+                    if 120 < x < 180: muscle_identifie = "Quadriceps (Haut)"
+                elif 220 < y < 280:
+                    if 120 < x < 180: muscle_identifie = "Quadriceps (Bas)"
+                
+                # --- BRAS FACE ---
+                elif (30 < x < 80) or (220 < x < 270):
+                    if 80 < y < 130: muscle_identifie = "Biceps"
+                    elif 130 < y < 190: muscle_identifie = "Avant-bras (Face)"
+            
+            # --- FACE ARRIÈRE (approx x > 300) ---
+            else: 
+                if y < 60: muscle_identifie = "Haut du dos (Trapèzes)"
+                elif 60 < y < 100:
+                    if 430 < x < 470: muscle_identifie = "Milieu du dos"
+                    elif (380 < x < 430) or (470 < x < 520): muscle_identifie = "Épaules (Postérieur)"
+                elif 100 < y < 150:
+                    if 410 < x < 490: muscle_identifie = "Grands Dorsaux (Lats)"
+                elif 150 < y < 190:
+                    if 430 < x < 470: muscle_identifie = "Bas du dos (Lombaires)"
+                elif 190 < y < 230:
+                    if 410 < x < 490: muscle_identifie = "Fessiers (Glutes)"
+                elif 230 < y < 280:
+                    if 410 < x < 490: muscle_identifie = "Ischios (Hamstrings)"
+                elif 280 < y < 350:
+                    if 420 < x < 480: muscle_identifie = "Mollets (Calves)"
 
-        # Si un muscle a été trouvé, on l'ajoute à la liste s'il n'y est pas déjà
-        if muscle_identifie and muscle_identifie not in st.session_state['muscles_selectionnes']:
-            st.session_state['muscles_selectionnes'].append(muscle_identifie)
+                # --- BRAS DOS ---
+                elif (330 < x < 380) or (520 < x < 570):
+                    if 80 < y < 130: muscle_identifie = "Triceps"
+                    elif 130 < y < 190: muscle_identifie = "Avant-bras (Dos)"
 
+            # Si on a identifié un muscle, on l'ajoute à la liste s'il n'y est pas déjà
+            if muscle_identifie and muscle_identifie not in st.session_state['muscles_selectionnes']:
+                st.session_state['muscles_selectionnes'].append(muscle_identifie)
+                st.toast(f"✅ {muscle_identifie} ajouté") # Notification discrète
+
+    # RÉCUPÉRATION ET AFFICHAGE DE LA SÉLECTION
     muscles_douloureux = st.session_state['muscles_selectionnes']
 
     if muscles_douloureux:
         st.info(f"🩹 Muscles ciblés : {', '.join(muscles_douloureux)}")
-        if st.button("🗑️ Effacer la sélection"):
+        if st.button("🗑️ Effacer la sélection musculaires"):
             st.session_state['muscles_selectionnes'] = []
+            st.session_state['dernier_clic'] = None # IMPORTANT : On reset la sécurité aussi
             st.rerun()
     else:
         st.caption("Aucun muscle sélectionné.")
 
     st.divider()
 
-    # LE BOUTON VALIDER QU'IL FALLAIT GARDER :
+    # LE BOUTON VALIDER RESTE ICI
     if st.button("Valider mon Check-in", type="primary"):
         date_du_jour = datetime.now().strftime("%Y-%m-%d")
         muscles_str = ", ".join(muscles_douloureux) if muscles_douloureux else "Aucun"
         
-        # On prépare la ligne propre pour Google Sheets
         nouvelle_ligne_checkin = [
-            date_du_jour, 
-            float(sommeil), 
-            int(vfc), 
-            int(energie), 
-            str(muscles_str)
+            date_du_jour, float(sommeil), int(vfc), int(energie), str(muscles_str)
         ]
 
         try:
-            # On envoie à Google Sheets
             save_checkin(nouvelle_ligne_checkin)
-            st.success(" Check-in enregistré dans la base de données ! Tu es prêt pour ta journée.")
+            st.success("✅ Check-in enregistré dans la base de données ! Tu es prêt pour ta journée.")
+            st.balloons()
             
             if sommeil < 6 or vfc < 45 or energie < 4:
-                st.warning(" Ton niveau de récupération est faible. L'IA va adapter ta séance.")
+                st.warning("⚠️ Ton niveau de récupération est faible. L'IA va adapter ta séance.")
             
         except Exception as e:
             st.error(f"Erreur lors de la sauvegarde : {e}")
-            
 # ---- PAGE 2 : SEANCE DU JOUR ----
 elif page == "Ma Seance du Jour":
     st.header("Ma Seance du Jour")
