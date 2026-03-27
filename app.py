@@ -173,8 +173,9 @@ if page == "Check-in Matinal":
             
         except Exception as e:
             st.error(f"Erreur lors de la sauvegarde : {e}")
-            
+
 # ---- PAGE 2 : SEANCE DU JOUR ----
+
 elif page == "Ma Seance du Jour":
     st.header("Ma Seance du Jour")
 
@@ -196,66 +197,140 @@ elif page == "Ma Seance du Jour":
         seance_df = df[(df["Semaine"] == semaine) & (df["Jour"] == jour)]
 
         if seance_df.empty:
-            st.info("Aucune seance prevue ce jour.")
+            st.info("Aucune seance prevue ce jour. Repose-toi bien !")
         else:
             type_seance = seance_df["Type_Seance"].iloc[0]
             st.subheader(f"Seance : {type_seance}")
             st.divider()
 
-            for _, row in seance_df.iterrows():
-                with st.expander(f"{row['Exercice_WOD']} — {row['Series_Cible']} series x {row['Reps_Cible']} reps @ {row['Poids_Cible_Kg']} kg"):
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
-                        poids_reel = st.number_input(f"Poids reel (kg)", min_value=0.0, step=0.5, key=f"poids_{row['Exercice_WOD']}")
-                    with col2:
-                        reps_reelles = st.number_input(f"Reps reelles", min_value=0, step=1, key=f"reps_{row['Exercice_WOD']}")
-                    with col3:
-                        rir = st.selectbox(f"RIR", [0, 1, 2, 3, 4], key=f"rir_{row['Exercice_WOD']}")
-                    rpe = 10 - rir
-                    st.metric("RPE", f"{rpe} / 10")
+            # --- LE CERVEAU DE L'APP : 3 MODES ---
+            type_seance_lower = str(type_seance).lower()
+            
+            mots_cles_course = ["course", "run", "fractionné", "piste", "endurance", "z2"]
+            mots_cles_wod = ["hyrox", "wod", "circuit", "conditioning"]
+            
+            est_une_course = any(mot in type_seance_lower for mot in mots_cles_course)
+            est_un_wod = any(mot in type_seance_lower for mot in mots_cles_wod)
 
-            st.divider()
-            session_rpe = st.slider("Note globale de la seance (1-10)", 1, 10, 7)
-
-            if st.button("Enregistrer la seance", type="primary"):
-                lignes_a_sauvegarder = []
-                date_du_jour = datetime.now().strftime("%Y-%m-%d")
-
-                for _, row in seance_df.iterrows():
-                    exo = row['Exercice_WOD']
-                    poids = st.session_state[f"poids_{exo}"]
-                    reps = st.session_state[f"reps_{exo}"]
-                    rir = st.session_state[f"rir_{exo}"]
-                    rpe_serie = 10 - rir
-                    
-                    # On s'assure que TOUT est dans un format que Google Sheets comprend (int, float, ou str)
-                    semaine_clean = int(semaine)
-                    poids_clean = float(poids)
-                    reps_clean = int(reps)
-                    rir_clean = int(rir)
-                    rpe_serie_clean = int(rpe_serie)
-                    session_rpe_clean = int(session_rpe)
-                    
-                    nouvelle_ligne = [
-                        date_du_jour, 
-                        semaine_clean, 
-                        str(jour), 
-                        str(type_seance), 
-                        str(exo), 
-                        poids_clean, 
-                        reps_clean, 
-                        rir_clean, 
-                        rpe_serie_clean, 
-                        session_rpe_clean
-                    ]
-                    lignes_a_sauvegarder.append(nouvelle_ligne)
+            if est_une_course:
+                # ---------------------------------------------------------
+                # MODE 1 : COURSE À PIED (Longue ou Fractionné)
+                # ---------------------------------------------------------
+                st.info("🏃‍♂️ Séance de course détectée !")
                 
-                save_performance(lignes_a_sauvegarder)
-                st.success("✅ Boom ! Seance enregistree avec succes dans Google Sheets.")
-                st.balloons()
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    distance = st.number_input("Distance (km)", min_value=0.0, step=0.1, value=5.0)
+                with col2:
+                    duree_run = st.number_input("Durée totale (min)", min_value=0, step=1, value=30)
+                with col3:
+                    fc_moyenne = st.number_input("FC Moyenne (bpm)", min_value=40, max_value=220, step=1, value=140)
+                
+                details_course = st.text_input("Détails (ex: 4x1000m, ou 20min Z2 + 10min Z4)", placeholder="Tes temps de passage ou zones...")
+                
+                st.divider()
+                session_rpe = st.slider("Note globale de la seance (1-10)", 1, 10, 7)
+
+                if st.button("Enregistrer la Course", type="primary"):
+                    date_du_jour = datetime.now().strftime("%Y-%m-%d")
+                    # Ruse : Poids = Distance, Reps = Durée, RIR = FC
+                    ligne_run = [
+                        date_du_jour, int(semaine), str(jour), str(type_seance), 
+                        f"Run: {details_course}", # Exercice
+                        float(distance), # Poids (détourné)
+                        int(duree_run), # Reps (détourné)
+                        int(fc_moyenne), # RIR (détourné)
+                        0, # RPE Serie
+                        int(session_rpe)
+                    ]
+                    try:
+                        save_performance([ligne_run])
+                        st.success(f"✅ Course enregistrée : {distance} km dans la besace !")
+                        st.balloons()
+                    except Exception as e:
+                        st.error(f"Erreur : {e}")
+
+            elif est_un_wod:
+                # ---------------------------------------------------------
+                # MODE 2 : WOD & HYROX
+                # ---------------------------------------------------------
+                st.info("🔥 Séance métabolique détectée !")
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    duree_wod = st.number_input("Durée totale (en minutes)", min_value=0, step=1, value=45)
+                with col2:
+                    format_wod = st.selectbox("Format de la séance", ["Solo", "Duo", "Team"])
+                
+                score_wod = st.text_input("Score ou Résumé (ex: 4 tours + 15 reps, ou temps final)")
+                
+                st.write("📸 Scanner le tableau de la Box")
+                photo_tableau = st.file_uploader("Upload la photo du WOD", type=['png', 'jpg', 'jpeg'])
+                if photo_tableau is not None:
+                    st.success("Image chargée ! (L'analyse IA OCR arrivera dans la prochaine version)")
+
+                st.divider()
+                session_rpe = st.slider("Note globale de la seance (1-10)", 1, 10, 8)
+
+                if st.button("Enregistrer le WOD", type="primary"):
+                    date_du_jour = datetime.now().strftime("%Y-%m-%d")
+                    ligne_wod = [
+                        date_du_jour, int(semaine), str(jour), str(type_seance), 
+                        f"Format {format_wod} - {score_wod}", 
+                        0.0, int(duree_wod), 0, 0, int(session_rpe)
+                    ]
+                    try:
+                        save_performance([ligne_wod])
+                        st.success("✅ Boom ! WOD enregistré avec succès.")
+                        st.balloons()
+                    except Exception as e:
+                        st.error(f"Erreur : {e}")
+
+            else:
+                # ---------------------------------------------------------
+                # MODE 3 : MUSCULATION CLASSIQUE
+                # ---------------------------------------------------------
+                for _, row in seance_df.iterrows():
+                    with st.expander(f"{row['Exercice_WOD']} — {row['Series_Cible']} series x {row['Reps_Cible']} reps @ {row['Poids_Cible_Kg']} kg"):
+                        col1, col2, col3 = st.columns(3)
+                        with col1:
+                            poids_reel = st.number_input(f"Poids reel (kg)", min_value=0.0, step=0.5, key=f"poids_{row['Exercice_WOD']}")
+                        with col2:
+                            reps_reelles = st.number_input(f"Reps reelles", min_value=0, step=1, key=f"reps_{row['Exercice_WOD']}")
+                        with col3:
+                            rir = st.selectbox(f"RIR", [0, 1, 2, 3, 4], key=f"rir_{row['Exercice_WOD']}")
+                        rpe = 10 - rir
+                        st.metric("RPE", f"{rpe} / 10")
+
+                st.divider()
+                session_rpe = st.slider("Note globale de la seance (1-10)", 1, 10, 7)
+
+                if st.button("Enregistrer la seance muscu", type="primary"):
+                    lignes_a_sauvegarder = []
+                    date_du_jour = datetime.now().strftime("%Y-%m-%d")
+
+                    for _, row in seance_df.iterrows():
+                        exo = row['Exercice_WOD']
+                        poids = st.session_state[f"poids_{exo}"]
+                        reps = st.session_state[f"reps_{exo}"]
+                        rir = st.session_state[f"rir_{exo}"]
+                        rpe_serie = 10 - rir
+                        
+                        nouvelle_ligne = [
+                            date_du_jour, int(semaine), str(jour), str(type_seance), str(exo), 
+                            float(poids), int(reps), int(rir), int(rpe_serie), int(session_rpe)
+                        ]
+                        lignes_a_sauvegarder.append(nouvelle_ligne)
+                    
+                    try:
+                        save_performance(lignes_a_sauvegarder)
+                        st.success("✅ Boom ! Séance de force enregistrée avec succès.")
+                        st.balloons()
+                    except Exception as e:
+                        st.error(f"Erreur : {e}")
 
     except Exception as e:
-        st.error(f"Erreur de connexion au Google Sheets : {e}")
+        st.error(f"Erreur de connexion au programme : {e}")
 
 # ---- PAGE 3 : STATS ----
 elif page == "Mes Stats":
