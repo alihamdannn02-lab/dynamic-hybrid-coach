@@ -69,7 +69,8 @@ st.sidebar.title("Navigation")
 page = st.sidebar.radio("", [
     "Check-in Matinal",
     "Ma Seance du Jour",
-    "Mes Stats"
+    "Mes Stats", 
+    "Créateur de Programme"
 ])
 
 # ---- PAGE 1 : CHECK-IN MATINAL ----
@@ -385,3 +386,50 @@ elif page == "Mes Stats":
 
     except Exception as e:
         st.error(f"Erreur de connexion au Google Sheets : {e}")
+
+# ---- PAGE 4 : CRÉATEUR DE PROGRAMME ----
+elif page == "Créateur de Programme":
+    st.header("🛠️ Créateur de Programme")
+    st.write("Prépare tes prochaines semaines d'entraînement directement d'ici. Fini les allers-retours sur Google Sheets !")
+
+    # On utilise un "form" pour grouper les inputs
+    with st.form("form_programme"):
+        st.subheader("Ajouter un exercice")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            semaine = st.number_input("Semaine n°", min_value=1, step=1, value=1)
+            jour = st.selectbox("Jour théorique", ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"])
+        with col2:
+            type_seance = st.text_input("Nom de la séance", placeholder="Ex: Upper Body, Hyrox, Course Longue")
+            exercice = st.text_input("Exercice / Description", placeholder="Ex: Développé couché, ou 5km Z2")
+
+        col3, col4, col5 = st.columns(3)
+        with col3:
+            series = st.number_input("Séries cibles", min_value=0, step=1)
+        with col4:
+            # On met les Reps en format "Texte" car ça peut être "8-12", "AMRAP" ou "45 min"
+            reps = st.text_input("Reps / Durée", placeholder="Ex: 8-12, AMRAP, 45m")
+        with col5:
+            poids = st.number_input("Poids cible (kg)", min_value=0.0, step=0.5)
+
+        # Le bouton de validation du formulaire
+        submit = st.form_submit_button("➕ Ajouter au Google Sheets", type="primary")
+
+        if submit:
+            if not type_seance or not exercice:
+                st.error("⚠️ Le nom de la séance et de l'exercice sont obligatoires pour sauvegarder.")
+            else:
+                # L'ordre standard des colonnes basé sur ton code précédent : 
+                # Semaine | Jour | Type_Seance | Exercice_WOD | Series_Cible | Reps_Cible | Poids_Cible_Kg
+                nouvelle_ligne_prog = [
+                    int(semaine), str(jour), str(type_seance), 
+                    str(exercice), int(series), str(reps), float(poids)
+                ]
+                
+                try:
+                    # ATTENTION : Il nous faudra cette nouvelle fonction backend
+                    save_nouveau_programme(nouvelle_ligne_prog) 
+                    st.success(f"✅ L'exercice '{exercice}' a bien été ajouté à ta semaine {semaine} !")
+                except Exception as e:
+                    st.error(f"Erreur de connexion : {e}")
