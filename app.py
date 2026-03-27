@@ -193,6 +193,7 @@ elif page == "Ma Seance du Jour":
     try:
         df = load_programme()
 
+        # --- SÉLECTION DE LA SÉANCE ---
         semaine = st.selectbox("Semaine", sorted(df["Semaine"].unique()))
         seances_semaine = df[df["Semaine"] == semaine]
         options_seances = seances_semaine['Type_Seance'].unique()
@@ -202,6 +203,7 @@ elif page == "Ma Seance du Jour":
         jour_theorique = seance_df["Jour"].iloc[0]
         seance_df = seance_df[seance_df["Jour"] == jour_theorique]
 
+        # --- VRAI JOUR POUR LA SAUVEGARDE ---
         jour_actuel_en = datetime.now().strftime("%A")
         jours_fr = {"Monday": "Lundi", "Tuesday": "Mardi", "Wednesday": "Mercredi",
                     "Thursday": "Jeudi", "Friday": "Vendredi", "Saturday": "Samedi", "Sunday": "Dimanche"}
@@ -237,7 +239,7 @@ elif page == "Ma Seance du Jour":
 
                 # --- LE BEAU DESIGN DES ZONES CARDIAQUES ---
                 st.write("❤️ **Zones de fréquence cardiaque**")
-                st.caption("Minutes passées dans chaque zone. Le total devrait idéalement correspondre à la durée de ta séance.")
+                st.caption("Minutes passées dans chaque zone. Le total devrait correspondre à la durée de ta séance.")
                 
                 cz1, cz2, cz3, cz4, cz5 = st.columns(5)
                 with cz1:
@@ -263,7 +265,7 @@ elif page == "Ma Seance du Jour":
                 if total_zones > duree_totale:
                     st.warning("⚠️ Attention : La somme de tes zones est supérieure à la durée totale de la séance !")
 
-                # Zone spécifique WOD (Photo)
+                # --- ZONE SPÉCIFIQUE WOD (Photo) ---
                 texte_wod_decode = ""
                 if est_un_wod:
                     st.write("📸 Scanner le tableau de la Box")
@@ -276,20 +278,24 @@ elif page == "Ma Seance du Jour":
                 session_rpe = st.slider("Note globale de la séance (RPE)", 1, 10, 7)
                 st.caption("🔥 1-2: Très facile | 3-4: Facile | 5-6: Modéré | 7-8: Difficile | 9: Très difficile | 10: Effort maximal")
 
-                # BOUTON DE SAUVEGARDE COMMUN CAR/WOD
+                # --- BOUTON DE SAUVEGARDE COMMUN COURSE/WOD ---
                 if st.button("Enregistrer la séance", type="primary"):
                     date_du_jour = datetime.now().strftime("%Y-%m-%d")
                     
+                    # LOGIQUE SÉPARÉE POUR LA COLONNE "EXERCICE"
                     if est_une_course:
                         details_exo = "Course"
                     else:
-                        details_exo = f"Format:{format_wod} | {texte_wod_decode.replace('\n', ' / ')}"
+                        if texte_wod_decode:
+                            details_exo = f"{format_wod} - {texte_wod_decode.replace('\n', ' / ')}"
+                        else:
+                            details_exo = f"{format_wod}"
 
-                    # LA NOUVELLE LIGNE AVEC LES 7 NOUVELLES COLONNES À LA FIN
+                    # LA LIGNE AVEC LES 7 NOUVELLES COLONNES À LA FIN
                     ligne_sauvegarde = [
                         date_du_jour, int(semaine), vrai_jour_actuel, str(type_seance), details_exo, 
                         0.0, 0, 0, 0, int(session_rpe), # Les 5 colonnes muscu mises à 0
-                        float(distance), int(duree_totale), int(z1), int(z2), int(z3), int(z4), int(z5) # Les 7 nouvelles colonnes
+                        float(distance), int(duree_totale), int(z1), int(z2), int(z3), int(z4), int(z5) # Les 7 colonnes Cardio
                     ]
                     
                     try:
@@ -330,11 +336,11 @@ elif page == "Ma Seance du Jour":
                         rir = st.session_state[f"rir_{exo}"]
                         rpe_serie = 10 - rir
                         
-                        # POUR LA MUSCU, ON MET LES 7 NOUVELLES COLONNES À ZÉRO/VIDE POUR GARDER LE TABLEAU ALIGNÉ
+                        # POUR LA MUSCU, ON MET LES 7 NOUVELLES COLONNES À ZÉRO POUR GARDER LE TABLEAU ALIGNÉ
                         nouvelle_ligne = [
                             date_du_jour, int(semaine), vrai_jour_actuel, str(type_seance), str(exo), 
                             float(poids), int(reps), int(rir), int(rpe_serie), int(session_rpe),
-                            0.0, 0, 0, 0, 0, 0, 0 # Distance, Durée, Z1..Z5 à zéro
+                            0.0, 0, 0, 0, 0, 0, 0 # Distance, Durée, Z1..Z5
                         ]
                         lignes_a_sauvegarder.append(nouvelle_ligne)
                     
