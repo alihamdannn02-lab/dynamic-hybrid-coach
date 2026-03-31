@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import json
+import re
 from datetime import datetime
 import gspread
 from google.oauth2.service_account import Credentials
@@ -139,43 +141,67 @@ def delete_last_session():
         return True, f"La séance du {last_date} ({count} lignes) a été annulée."
     except Exception as e:
         return False, f"Erreur : {e}"
+        
 def generer_seance_ia(energie, sommeil, courbatures, objectif):
-    # C'est ici qu'on donne sa personnalité et ses instructions à l'IA
-    prompt = f"""Tu es un coach sportif d'élite expert en entraînement hybride (Force, Hyrox, Endurance, Calisthenics).
-    Ton client te demande de lui créer une séance sur mesure pour aujourd'hui.
+    # On force l'IA à répondre avec un format JSON strict
+    prompt = f"""Tu es un coach sportif d'élite expert en entraînement hybride.
+    Voici l'état du client : Sommeil: {sommeil}h, Énergie: {energie}/10, Douleurs: {courbatures}, Objectif: {objectif}.
     
-    Voici son état de forme actuel (Check-in du jour) :
-    - Sommeil cette nuit : {sommeil} heures
-    - Niveau d'énergie (10 = forme olympique, 1 = épuisé) : {energie}/10
-    - Zones musculaires douloureuses : {courbatures}
-    - Objectif ou type de séance souhaité aujourd'hui : {objectif}
-
-    RÈGLES STRICTES :
-    1. Si l'énergie est basse (<5) ou le sommeil mauvais (<6h), FORCE le client à faire de la récupération active (Active Recovery), de la mobilité, ou du cardio très léger (Z1/Z2). Interdit de mettre du lourd.
-    2. Adapte les exercices pour ÉVITER de solliciter les zones douloureuses mentionnées.
-    3. Si la forme est excellente (>7), propose un vrai challenge adapté à l'objectif.
+    Règles de sécurité : Si l'énergie est < 5 ou le sommeil < 6h, impose de la récupération active ou du cardio très léger. Évite les muscles douloureux.
     
-    Format de réponse attendu (en Markdown structuré et motivant) :
-    ### 🎯 Nom de la séance
-    **Type :** (Force, WOD, Endurance ou Récupération)
-    
-    **🔥 Échauffement :**
-    - (Liste les mouvements)
-    
-    **💪 Cœur de la séance :**
-    - (Détail des exercices avec Séries x Reps @ Intensité)
-    
-    **🧘‍♂️ Cool-down :**
-    - (Étirements)
-    
-    Ajoute un petit mot d'encouragement personnalisé à la fin en fonction de sa fatigue !
+    Tu DOIS répondre STRICTEMENT au format JSON. Ne renvoie aucun autre texte avant ou après.
+    Voici le format exact attendu :
+    {{
+        "titre": "Titre de la séance",
+        "message": "Ton mot d'encouragement personnalisé",
+        "exercices": [
+            {{"nom": "Nom de l'exercice 1", "series": 4, "reps": 10, "poids": 20}},
+            {{"nom": "Nom de l'exercice 2", "series": 3, "reps": 12, "poids": 0}}
+        ]
+    }}
     """
     
     try:
         reponse = modele_ia.generate_content(prompt)
-        return reponse.text
+        texte = reponse.text
+        
+        # Nettoyage de la réponse (l'IA met parfois des balises ```json autour)
+        texte_propre = re.sub(r"```json\n|\n```", "", texte).strip()
+        if texte_propre.startswith("```"): 
+            texte_propre = re.sub(r"```.*\n|\n```", "", texte_propre).strip()
+        
+        # Transformation du texte en véritable Dictionnaire Python
+        donnees = json.loads(texte_propre)
+        return True, donnees
     except Exception as e:
-        return f"Erreur de connexion au cerveau IA : {e}"
+        return False, f"Erreur de formatage du cerveau IA : {e}"
+
+def sauvegarder_seance_ia_programme(titre, df_exos):
+    # On va enregistrer cette séance dans une "Semaine 99" pour qu'elle soit facile à retrouver !
+    try:
+        client = connect_sheets()
+        sheet = client.open("DB_Dynamic_Hybrid_Coach")
+        worksheet = sheet.worksheet("Programme_Theorique")
+        
+        lignes_a_ajouter = []
+        for idx, row in df_exos.iterrows():
+            lignes_a_ajouter.append([
+                99, # Semaine 99 (Spéciale IA)
+                "Jour IA", # Jour
+                str(titre), # Type de séance (Titre généré)
+                str(row["Exercice"]),
+                int(row["Séries"]),
+                int(row["Reps"]),
+                float(row["Poids (kg)"]),
+                "", # Format Hyrox
+                "IA" # Tags
+            ])
+            
+        worksheet.append_rows(lignes_a_ajouter)
+        return True
+    except Exception as e:
+        return False
+        
         
 # ---- HEADER ----
 st.title("Dynamic Hybrid Coach")
@@ -717,9 +743,12 @@ elif page == "Créateur de Programme":
     # ---------------------------------------------------------
     with tab2:
         st.subheader("🧠 Générer une séance avec l'IA")
-        st.write("Le coach va analyser ta forme du jour et te créer un WOD sur mesure.")
         
-        # On essaie de récupérer le dernier check-in pour pré-remplir l'état de forme !
+        # INITIALISATION DE LA MÉMOIRE (SESSION STATE)
+        if "seance_ia_generee" not in st.session_state:
+            st.session_state.seance_ia_generee = None
+            
+        # Récupération du dernier Check-in (si existant)
         df_checkin = load_historique_checkin()
         sommeil_defaut, energie_defaut, courbatures_defaut = 7.0, 7, "Aucune"
         if not df_checkin.empty:
@@ -740,8 +769,45 @@ elif page == "Créateur de Programme":
             ia_courbatures = st.text_input("Douleurs / Courbatures ?", value=courbatures_defaut)
             ia_objectif = st.selectbox("Type de séance voulu", ["Hyrox / WOD", "Renforcement Haut du corps", "Renforcement Bas du corps", "Cardio LISS (Zone 2)", "Récupération Active"])
         
+        # BOUTON DE GÉNÉRATION
         if st.button("✨ Générer ma séance sur mesure", type="primary"):
             with st.spinner("Le coach réfléchit à ton programme... 🧠"):
-                seance_generee = generer_seance_ia(ia_energie, ia_sommeil, ia_courbatures, ia_objectif)
-                st.divider()
-                st.markdown(seance_generee)
+                success, resultat = generer_seance_ia(ia_energie, ia_sommeil, ia_courbatures, ia_objectif)
+                if success:
+                    # On stocke le résultat dans la mémoire de la page !
+                    st.session_state.seance_ia_generee = resultat
+                    st.rerun() # On rafraîchit pour afficher la suite
+                else:
+                    st.error(resultat)
+        
+        # --- L'IA A FAIT UNE PROPOSITION : ON AFFICHE LES BOUTONS ---
+        if st.session_state.seance_ia_generee:
+            seance = st.session_state.seance_ia_generee
+            st.divider()
+            st.markdown(f"### 🎯 {seance.get('titre', 'Séance IA')}")
+            st.info(f"🗣️ **Coach :** {seance.get('message', '')}")
+            
+            # On transforme le JSON des exercices en tableau Pandas
+            df_exos = pd.DataFrame(seance.get("exercices", []))
+            if not df_exos.empty:
+                df_exos.columns = ["Exercice", "Séries", "Reps", "Poids (kg)"]
+                st.dataframe(df_exos, use_container_width=True, hide_index=True)
+            
+            st.write("**Que veux-tu faire de cette séance ?**")
+            col_action1, col_action2 = st.columns(2)
+            
+            with col_action1:
+                if st.button("✅ L'accepter et l'ajouter au programme"):
+                    with st.spinner("Sauvegarde dans le Google Sheets..."):
+                        if sauvegarder_seance_ia_programme(seance.get('titre', 'Séance IA'), df_exos):
+                            st.success("✅ WOD ajouté ! Va dans 'Ma Séance du Jour' et sélectionne la Semaine 99 pour le faire !")
+                            st.session_state.seance_ia_generee = None # On vide la mémoire
+                            st.cache_data.clear() # On met à jour l'application
+                            st.balloons()
+                        else:
+                            st.error("Erreur lors de la sauvegarde.")
+                            
+            with col_action2:
+                if st.button("🔄 Non, propose-moi autre chose"):
+                    st.session_state.seance_ia_generee = None # On vide la mémoire
+                    st.rerun() # Rafraîchissement automatique
