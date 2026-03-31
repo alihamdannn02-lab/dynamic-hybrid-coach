@@ -211,7 +211,7 @@ st.divider()
 # --- NAVIGATION SIDEBAR AMÉLIORÉE ---
 with st.sidebar:
     st.title("Hybrid Coach")
-    st.image("https://cdn-icons-png.flaticon.com/512/1099/1099672.png", width=100) # Un petit logo d'haltère
+    st.markdown("## 🏋️‍♂️")
     st.divider()
     
     page = st.radio(
