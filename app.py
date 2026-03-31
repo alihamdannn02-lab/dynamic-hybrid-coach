@@ -5,6 +5,15 @@ from datetime import datetime
 import gspread
 from google.oauth2.service_account import Credentials
 from streamlit_image_coordinates import streamlit_image_coordinates
+import google.generativeai as genai
+
+# --- CONFIGURATION DE L'IA GEMINI ---
+try:
+    genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+    # On utilise le modèle "Flash", ultra-rapide et gratuit
+    modele_ia = genai.GenerativeModel('gemini-1.5-flash') 
+except Exception as e:
+    st.warning("Clé API Gemini non configurée. La fonction Coach IA est désactivée.")
 
 # ---- CONFIG ----
 st.set_page_config(
