@@ -478,7 +478,10 @@ elif page == "Créateur de Programme":
                 ]
                 try:
                     save_nouveau_programme(nouvelle_ligne_prog) 
-                    st.cache_data.clear()
+                    
+                    # ✅ ON VIDE LA MÉMOIRE DE LA LECTURE SPÉCIFIQUEMENT
+                    load_programme.clear()
+                    
                     st.success(f"✅ Ajouté avec succès à ta semaine {semaine} !")
                     st.balloons()
                 except Exception as e:
