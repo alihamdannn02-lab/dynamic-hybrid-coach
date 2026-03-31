@@ -85,7 +85,40 @@ def save_performance(lignes_donnees):
     worksheet = sheet.worksheet("Historique_Realise")
     # On utilise append_rows avec un "s" car on envoie parfois plusieurs lignes d'un coup (muscu)
     worksheet.append_rows(lignes_donnees)
-    
+
+def delete_last_session():
+    try:
+        client = connect_sheets()
+        sheet = client.open("DB_Dynamic_Hybrid_Coach")
+        worksheet = sheet.worksheet("Historique_Realise")
+        
+        # On récupère toutes les valeurs
+        all_values = worksheet.get_all_values()
+        
+        if len(all_values) <= 1: # S'il n'y a que l'en-tête
+            return False, "L'historique est déjà vide."
+
+        # On identifie la date de la toute dernière ligne
+        last_date = all_values[-1][0]
+        
+        # On compte combien de lignes ont cette même date à la fin du tableau
+        count = 0
+        for row in reversed(all_values):
+            if row[0] == last_date:
+                count += 1
+            else:
+                break
+        
+        # On calcule les indices des lignes à supprimer
+        total_rows = len(all_values)
+        start_row = total_rows - count + 1
+        
+        # Suppression dans Google Sheets
+        worksheet.delete_rows(start_row, total_rows)
+        return True, f"La séance du {last_date} ({count} lignes) a été annulée."
+    except Exception as e:
+        return False, f"Erreur : {e}"
+
 # ---- HEADER ----
 st.title("Dynamic Hybrid Coach")
 st.subheader("Ton coach personnel : Entrainement Hybride")
@@ -100,6 +133,19 @@ page = st.sidebar.radio("", [
     "Créateur de Programme"
 ])
 
+# --- OPTION DE CORRECTION RAPIDE ---
+st.sidebar.divider()
+st.sidebar.write("⚠️ **Correction**")
+if st.sidebar.button("🗑️ Annuler ma dernière séance"):
+    success, message = delete_last_session()
+    if success:
+        # On vide le cache pour que les graphiques se mettent à jour
+        st.cache_data.clear()
+        st.sidebar.success(message)
+        st.balloons()
+    else:
+        st.sidebar.error(message)
+        
 # ---- PAGE 1 : CHECK-IN MATINAL ----
 if page == "Check-in Matinal":
     st.header("Check-in Matinal")
