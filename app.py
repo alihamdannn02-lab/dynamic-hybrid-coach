@@ -231,16 +231,28 @@ elif page == "Ma Seance du Jour":
             est_un_wod = any(mot in type_seance_lower for mot in mots_cles_wod)
 
             if est_une_course or est_un_wod:
+                
+                # --- NOUVEAUTÉ : EXTRACTION DYNAMIQUE DE LA DURÉE CIBLE ---
+                duree_cible_str = str(seance_df["Reps_Cible"].iloc[0])
+                duree_cible = 30 # Valeur de secours au cas où tu n'aurais rien mis
+                try:
+                    # On extrait uniquement les chiffres (transforme "45 min" en 45)
+                    chiffres = ''.join(filter(str.isdigit, duree_cible_str))
+                    if chiffres:
+                        duree_cible = int(chiffres)
+                except:
+                    pass
+
                 # --- INTERFACE COMMUNE HYROX ET COURSE ---
                 if est_une_course:
-                    st.info(" Séance de course détectée !")
+                    st.info("🏃‍♂️ Séance de course détectée !")
                     col1, col2 = st.columns(2)
                     with col1: distance = st.number_input("Distance (km)", min_value=0.0, step=0.1, value=5.0)
-                    with col2: duree_totale = st.number_input("Durée totale (min)", min_value=0, step=1, value=30)
+                    with col2: duree_totale = st.number_input("Durée totale (min)", min_value=0, step=1, value=duree_cible)
                 else:
-                    st.info("Séance métabolique détectée !")
+                    st.info("🔥 Séance métabolique détectée !")
                     col1, col2 = st.columns(2)
-                    with col1: duree_totale = st.number_input("Durée totale (min)", min_value=0, step=1, value=45)
+                    with col1: duree_totale = st.number_input("Durée totale (min)", min_value=0, step=1, value=duree_cible)
                     with col2: format_wod = st.selectbox("Format", ["Solo", "Duo", "Team"])
                     distance = 0.0 # Pas de distance stricte pour le WOD global
 
