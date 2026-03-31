@@ -10,7 +10,7 @@ import google.generativeai as genai
 # --- CONFIGURATION DE L'IA GEMINI ---
 try:
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-    modele_ia = genai.GenerativeModel('gemini-1.5-flash') 
+    modele_ia = genai.GenerativeModel('gemini-pro')
 except Exception as e:
     # NOUVEAUTÉ : On affiche l'erreur technique exacte !
     st.warning(f"⚠️ Débogage IA - Voici l'erreur exacte : {e}")
