@@ -10,11 +10,23 @@ import google.generativeai as genai
 # --- CONFIGURATION DE L'IA GEMINI ---
 try:
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-    modele_ia = genai.GenerativeModel('gemini-pro')
+    
+    # Astuce de pro : On demande à Google quels modèles sont dispos pour ta clé !
+    model_id = None
+    for m in genai.list_models():
+        if 'generateContent' in m.supported_generation_methods:
+            model_id = m.name
+            if 'flash' in m.name: # On préfère la version Flash (plus rapide) si elle est dispo
+                break
+                
+    if model_id:
+        modele_ia = genai.GenerativeModel(model_id)
+    else:
+        st.warning("⚠️ Aucun modèle compatible trouvé pour cette clé API.")
+        
 except Exception as e:
-    # NOUVEAUTÉ : On affiche l'erreur technique exacte !
     st.warning(f"⚠️ Débogage IA - Voici l'erreur exacte : {e}")
-
+    
 # ---- CONFIG ----
 st.set_page_config(
     page_title="Dynamic Hybrid Coach",
