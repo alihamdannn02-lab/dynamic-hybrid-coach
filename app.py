@@ -41,7 +41,7 @@ def connect_sheets():
 def load_programme():
     client = connect_sheets()
     sheet = client.open("DB_Dynamic_Hybrid_Coach")
-    worksheet = sheet.get_worksheet(0)
+    worksheet = sheet.worksheet("Programme_Base") 
     data = worksheet.get_all_records()
     return pd.DataFrame(data)
 
