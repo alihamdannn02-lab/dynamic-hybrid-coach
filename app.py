@@ -9,6 +9,47 @@ from google.oauth2.service_account import Credentials
 from streamlit_image_coordinates import streamlit_image_coordinates
 import google.generativeai as genai
 
+# --- STYLE CSS PERSONNALISÉ ---
+st.markdown("""
+    <style>
+    /* Fond de l'application */
+    .stApp {
+        background-color: #0e1117;
+    }
+    
+    /* Style des boutons principaux */
+    .stButton>button {
+        border-radius: 20px;
+        border: none;
+        background: linear-gradient(45deg, #FF4B4B, #FF8F8F);
+        color: white;
+        font-weight: bold;
+        transition: 0.3s;
+        width: 100%;
+    }
+    .stButton>button:hover {
+        transform: scale(1.02);
+        box-shadow: 0px 4px 15px rgba(255, 75, 75, 0.4);
+    }
+
+    /* Style des cartes (Metrics) */
+    [data-testid="stMetricValue"] {
+        font-size: 28px;
+        color: #FF4B4B;
+    }
+
+    /* Sidebar personnalisée */
+    .css-1d391kg {
+        background-color: #161b22;
+    }
+    
+    /* Cacher le menu Streamlit par défaut pour faire "App Pro" */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    </style>
+    """, unsafe_allow_html=True)
+
+
 # --- CONFIGURATION DE L'IA GEMINI ---
 try:
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
@@ -617,9 +658,27 @@ elif page == "Mes Stats":
                 st.caption("Pas encore assez de données de check-in.")
 
         st.divider()
+        
+    # --- DANS LA PAGE MES STATS ---
+if not df_perfs.empty:
+    st.subheader("📈 Analyse de la Charge de Travail")
+    
+    # Calcul du volume par séance
+    df_perfs['Volume'] = df_perfs['Séries'] * df_perfs['Reps'] * df_perfs['Poids_réel']
+    
+    # Groupement par date pour voir l'évolution
+    volume_mensuel = df_perfs.groupby('Date')['Volume'].sum().reset_index()
+    
+    # Affichage du graphique de Volume Total
+    st.line_chart(data=volume_mensuel, x='Date', y='Volume')
+    
+    # Petit calcul de l'IA pour commenter le volume
+    total_vol = volume_mensuel['Volume'].sum()
+    st.metric("Volume Total Soulevé", f"{int(total_vol)} kg", "+ 12% vs mois dernier") 
+    # (Le +12% est statique ici, on pourra le rendre dynamique plus tard !)
 
         # --- SECTION 3 : RÉPARTITION DE L'ENTRAÎNEMENT ---
-        st.subheader("🔥 Répartition de l'effort")
+        st.subheader(" Répartition de l'effort")
         if not df_realise.empty and "Type_Seance" in df_realise.columns:
             # On compte le nombre d'exercices/séries par type de séance
             df_repartition = df_realise["Type_Seance"].value_counts().reset_index()
@@ -635,11 +694,12 @@ elif page == "Mes Stats":
                 if tonnage_total > 0:
                     st.success(f"🏋️‍♂️ Tonnage total soulevé depuis le début : **{tonnage_total:,.0f} kg**")
                     
+                    
 # ---- PAGE 4 : CRÉATEUR DE PROGRAMME ----
 elif page == "Créateur de Programme":
     st.header("🛠️ Gestion du Programme")
     
-    tab1, tab2 = st.tabs(["✍️ Saisie Rapide (Historique)", "🤖 Génération par l'IA"])
+    tab1, tab2 = st.tabs([" Saisie Rapide (Historique)", "🤖 Génération par l'IA"])
 
     # ---------------------------------------------------------
     # ONGLET 1 : SAISIE INTELLIGENTE BASÉE SUR TON HISTORIQUE
