@@ -5,3 +5,4 @@ gspread
 google-auth
 openai
 streamlit-image-coordinates
+google-generativeai
