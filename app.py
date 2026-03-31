@@ -9,6 +9,46 @@ from google.oauth2.service_account import Credentials
 from streamlit_image_coordinates import streamlit_image_coordinates
 import google.generativeai as genai
 
+# --- STYLE CSS PERSONNALISÉ ---
+st.markdown("""
+    <style>
+    /* Fond de l'application */
+    .stApp {
+        background-color: #0e1117;
+    }
+    
+    /* Style des boutons principaux */
+    .stButton>button {
+        border-radius: 20px;
+        border: none;
+        background: linear-gradient(45deg, #FF4B4B, #FF8F8F);
+        color: white;
+        font-weight: bold;
+        transition: 0.3s;
+        width: 100%;
+    }
+    .stButton>button:hover {
+        transform: scale(1.02);
+        box-shadow: 0px 4px 15px rgba(255, 75, 75, 0.4);
+    }
+
+    /* Style des cartes (Metrics) */
+    [data-testid="stMetricValue"] {
+        font-size: 28px;
+        color: #FF4B4B;
+    }
+
+    /* Sidebar personnalisée */
+    .css-1d391kg {
+        background-color: #161b22;
+    }
+    
+    /* Cacher le menu Streamlit par défaut pour faire "App Pro" */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    </style>
+    """, unsafe_allow_html=True)
+
 
 # --- CONFIGURATION DE L'IA GEMINI ---
 try:
@@ -208,6 +248,20 @@ st.title("Dynamic Hybrid Coach")
 st.subheader("Ton coach personnel : Entrainement Hybride")
 st.divider()
 
+# --- NAVIGATION SIDEBAR AMÉLIORÉE ---
+with st.sidebar:
+    st.title("Hybrid Coach")
+    st.image("https://cdn-icons-png.flaticon.com/512/1099/1099672.png", width=100) # Un petit logo d'haltère
+    st.divider()
+    
+    page = st.radio(
+        "Menu Principal",
+        [" Check-in Matinal", "Ma Séance du Jour", "Mes Stats", "Coach IA & Programme"],
+        index=0
+    )
+    
+    st.divider()
+    st.info("Version 3.0 - Intelligence Artificielle activée")
 
 # --- OPTION DE CORRECTION RAPIDE ---
 st.sidebar.divider()
@@ -610,7 +664,9 @@ elif page == "Mes Stats":
                 st.caption("Pas encore assez de données de check-in.")
 
         st.divider()
-               
+    
+    
+                    
                     
 # ---- PAGE 4 : CRÉATEUR DE PROGRAMME ----
 elif page == "Créateur de Programme":
