@@ -127,7 +127,44 @@ def delete_last_session():
         return True, f"La séance du {last_date} ({count} lignes) a été annulée."
     except Exception as e:
         return False, f"Erreur : {e}"
+def generer_seance_ia(energie, sommeil, courbatures, objectif):
+    # C'est ici qu'on donne sa personnalité et ses instructions à l'IA
+    prompt = f"""Tu es un coach sportif d'élite expert en entraînement hybride (Force, Hyrox, Endurance, Calisthenics).
+    Ton client te demande de lui créer une séance sur mesure pour aujourd'hui.
+    
+    Voici son état de forme actuel (Check-in du jour) :
+    - Sommeil cette nuit : {sommeil} heures
+    - Niveau d'énergie (10 = forme olympique, 1 = épuisé) : {energie}/10
+    - Zones musculaires douloureuses : {courbatures}
+    - Objectif ou type de séance souhaité aujourd'hui : {objectif}
 
+    RÈGLES STRICTES :
+    1. Si l'énergie est basse (<5) ou le sommeil mauvais (<6h), FORCE le client à faire de la récupération active (Active Recovery), de la mobilité, ou du cardio très léger (Z1/Z2). Interdit de mettre du lourd.
+    2. Adapte les exercices pour ÉVITER de solliciter les zones douloureuses mentionnées.
+    3. Si la forme est excellente (>7), propose un vrai challenge adapté à l'objectif.
+    
+    Format de réponse attendu (en Markdown structuré et motivant) :
+    ### 🎯 Nom de la séance
+    **Type :** (Force, WOD, Endurance ou Récupération)
+    
+    **🔥 Échauffement :**
+    - (Liste les mouvements)
+    
+    **💪 Cœur de la séance :**
+    - (Détail des exercices avec Séries x Reps @ Intensité)
+    
+    **🧘‍♂️ Cool-down :**
+    - (Étirements)
+    
+    Ajoute un petit mot d'encouragement personnalisé à la fin en fonction de sa fatigue !
+    """
+    
+    try:
+        reponse = modele_ia.generate_content(prompt)
+        return reponse.text
+    except Exception as e:
+        return f"Erreur de connexion au cerveau IA : {e}"
+        
 # ---- HEADER ----
 st.title("Dynamic Hybrid Coach")
 st.subheader("Ton coach personnel : Entrainement Hybride")
@@ -664,20 +701,35 @@ elif page == "Créateur de Programme":
                     st.error(f"Erreur de connexion : {e}")
 
     # ---------------------------------------------------------
-    # ONGLET 2 : LE COACH IA (Préparation)
+    # ONGLET 2 : LE COACH IA (GÉNÉRATION DYNAMIQUE)
     # ---------------------------------------------------------
     with tab2:
-        st.subheader("🧠 Générateur de Séance IA")
-        st.info("L'IA va bientôt pouvoir analyser ton Check-in Matinal, croiser ça avec tes anciens exercices, et te pondre la séance hybride parfaite pour aujourd'hui.")
+        st.subheader("🧠 Générer une séance avec l'IA")
+        st.write("Le coach va analyser ta forme du jour et te créer un WOD sur mesure.")
         
-        objectif_ia = st.selectbox("Quel est l'objectif du jour ?", ["Gérer la fatigue (Active Recovery)", "Exploser les chronos (Conditioning)", "Force pure (Hypertrophie/Force)"])
+        # On essaie de récupérer le dernier check-in pour pré-remplir l'état de forme !
+        df_checkin = load_historique_checkin()
+        sommeil_defaut, energie_defaut, courbatures_defaut = 7.0, 7, "Aucune"
+        if not df_checkin.empty:
+            dernier_checkin = df_checkin.iloc[-1]
+            try:
+                sommeil_defaut = float(dernier_checkin.get("Heures_Sommeil", 7.0))
+                energie_defaut = int(dernier_checkin.get("Niveau_Energie", 7))
+                courbatures_defaut = str(dernier_checkin.get("Muscles_Douloureux", "Aucune"))
+            except: pass
+
+        st.info("💡 Les données ci-dessous sont basées sur ton dernier Check-in. Modifie-les si besoin.")
         
-        if st.button("✨ Générer ma séance", type="primary"):
-            st.success("Connexion à l'IA en cours d'installation...")
-            st.write("### 🤖 Proposition de l'IA (Simulation) :")
-            st.write("**Type :** Hybrid Conditioning")
-            st.write("**Échauffement :** 10 min Z1 + Mobilité")
-            st.write("**WOD (AMRAP 15 min) :**")
-            st.write("- 400m Run")
-            st.write("- 15 Kettlebell Swings")
-            st.write("- 10 Burpees")
+        col_ia1, col_ia2 = st.columns(2)
+        with col_ia1:
+            ia_sommeil = st.number_input("Sommeil (h)", min_value=0.0, max_value=12.0, value=sommeil_defaut, step=0.5)
+            ia_energie = st.slider("Énergie (1-10)", 1, 10, energie_defaut)
+        with col_ia2:
+            ia_courbatures = st.text_input("Douleurs / Courbatures ?", value=courbatures_defaut)
+            ia_objectif = st.selectbox("Type de séance voulu", ["Hyrox / WOD", "Renforcement Haut du corps", "Renforcement Bas du corps", "Cardio LISS (Zone 2)", "Récupération Active"])
+        
+        if st.button("✨ Générer ma séance sur mesure", type="primary"):
+            with st.spinner("Le coach réfléchit à ton programme... 🧠"):
+                seance_generee = generer_seance_ia(ia_energie, ia_sommeil, ia_courbatures, ia_objectif)
+                st.divider()
+                st.markdown(seance_generee)
