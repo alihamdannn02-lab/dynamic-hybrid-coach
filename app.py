@@ -41,20 +41,14 @@ def connect_sheets():
 def load_programme():
     client = connect_sheets()
     sheet = client.open("DB_Dynamic_Hybrid_Coach")
-    worksheet = sheet.worksheet("Programme_Base") 
+    worksheet = sheet.worksheet("Programme_Theorique") 
     data = worksheet.get_all_records()
     return pd.DataFrame(data)
 
 def save_nouveau_programme(ligne_donnees):
     client = connect_sheets()
     sheet = client.open("DB_Dynamic_Hybrid_Coach")
-    
-    # ⚠️ IMPORTANT : J'ai mis "Programme_Base" ici. 
-    # Si ton onglet Google Sheets s'appelle juste "Programme" ou autre chose, 
-    # n'oublie pas de changer le nom exact entre les guillemets !
-    worksheet = sheet.worksheet("Programme_Base")
-    
-    # On utilise append_row (sans "s" à la fin) car on envoie une seule ligne à la fois
+    worksheet = sheet.worksheet("Programme_Theorique")
     worksheet.append_row(ligne_donnees)
     
 def save_checkin(ligne_donnees):
