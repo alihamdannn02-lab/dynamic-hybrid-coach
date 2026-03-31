@@ -664,32 +664,7 @@ elif page == "Mes Stats":
                 st.caption("Pas encore assez de données de check-in.")
 
         st.divider()
-        
-        # --- DANS LA PAGE MES STATS ---
-elif page == "📊 Mes Stats":
-    st.header("📊 Analyse de tes Performances")
-    
-    # --- CHARGEMENT DES DONNÉES (L'étape manquante !) ---
-    df_perfs = load_seances_realisees() # Cette fonction doit exister dans ton code
-    df_checkin = load_historique_checkin()
-if not df_perfs.empty:
-    st.subheader("📈 Analyse de la Charge de Travail")
-    
-    # Calcul du volume par séance
-    df_perfs['Volume'] = df_perfs['Séries'] * df_perfs['Reps'] * df_perfs['Poids_réel']
-    
-    # Groupement par date pour voir l'évolution
-    volume_mensuel = df_perfs.groupby('Date')['Volume'].sum().reset_index()
-    
-    # Affichage du graphique de Volume Total
-    st.line_chart(data=volume_mensuel, x='Date', y='Volume')
-    
-    # Petit calcul de l'IA pour commenter le volume
-    total_vol = volume_mensuel['Volume'].sum()
-    st.metric("Volume Total Soulevé", f"{int(total_vol)} kg", "+ 12% vs mois dernier") 
-    # (Le +12% est statique ici, on pourra le rendre dynamique plus tard !)
-    
-                    
+               
                     
 # ---- PAGE 4 : CRÉATEUR DE PROGRAMME ----
 elif page == "Créateur de Programme":
