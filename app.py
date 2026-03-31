@@ -417,13 +417,18 @@ elif page == "Créateur de Programme":
     with tab1:
         st.write("Ajoute un exercice ou une séance complète dans ton programme.")
         
+        # --- NOUVEAUTÉ : VERROUILLAGE DE LA SEMAINE ---
         try:
             df = load_programme()
             liste_seances = df["Type_Seance"].dropna().unique().tolist()
             liste_exos = df["Exercice_WOD"].dropna().unique().tolist()
+            
+            # On cherche la semaine la plus avancée dans ton programme
+            semaine_actuelle = int(df["Semaine"].max()) if not df.empty else 1
         except:
             liste_seances = []
             liste_exos = []
+            semaine_actuelle = 1
 
         options_seances = ["-- Nouvelle séance --"] + liste_seances
         options_exos = ["-- Nouvel exercice --"] + liste_exos
@@ -431,7 +436,8 @@ elif page == "Créateur de Programme":
         # LIGNE 1 : Le contexte (Semaine, Jour, Nom de la séance)
         col1, col2, col3 = st.columns(3)
         with col1:
-            semaine = st.number_input("Semaine n°", min_value=1, step=1, value=1)
+            # On utilise "semaine_actuelle" comme minimum et valeur par défaut !
+            semaine = st.number_input("Semaine n°", min_value=semaine_actuelle, step=1, value=semaine_actuelle)
         with col2:
             jour = st.selectbox("Jour théorique", ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"])
         with col3:
