@@ -248,14 +248,20 @@ st.title("Dynamic Hybrid Coach")
 st.subheader("Ton coach personnel : Entrainement Hybride")
 st.divider()
 
-# ---- SIDEBAR ----
-st.sidebar.title("Navigation")
-page = st.sidebar.radio("", [
-    "Check-in Matinal",
-    "Ma Seance du Jour",
-    "Mes Stats", 
-    "Créateur de Programme"
-])
+# --- NAVIGATION SIDEBAR AMÉLIORÉE ---
+with st.sidebar:
+    st.title("Hybrid Coach")
+    st.image("https://cdn-icons-png.flaticon.com/512/1099/1099672.png", width=100) # Un petit logo d'haltère
+    st.divider()
+    
+    page = st.radio(
+        "Menu Principal",
+        [" Check-in Matinal", "Ma Séance du Jour", "Mes Stats", "Coach IA & Programme"],
+        index=0
+    )
+    
+    st.divider()
+    st.info("Version 3.0 - Intelligence Artificielle activée")
 
 # --- OPTION DE CORRECTION RAPIDE ---
 st.sidebar.divider()
@@ -659,7 +665,7 @@ elif page == "Mes Stats":
 
         st.divider()
         
-    # --- DANS LA PAGE MES STATS ---
+        # --- DANS LA PAGE MES STATS ---
 if not df_perfs.empty:
     st.subheader("📈 Analyse de la Charge de Travail")
     
@@ -676,23 +682,7 @@ if not df_perfs.empty:
     total_vol = volume_mensuel['Volume'].sum()
     st.metric("Volume Total Soulevé", f"{int(total_vol)} kg", "+ 12% vs mois dernier") 
     # (Le +12% est statique ici, on pourra le rendre dynamique plus tard !)
-
-        # --- SECTION 3 : RÉPARTITION DE L'ENTRAÎNEMENT ---
-        st.subheader(" Répartition de l'effort")
-        if not df_realise.empty and "Type_Seance" in df_realise.columns:
-            # On compte le nombre d'exercices/séries par type de séance
-            df_repartition = df_realise["Type_Seance"].value_counts().reset_index()
-            df_repartition.columns = ["Type de Séance", "Volume (Lignes)"]
-            
-            # Utilisation d'un dataframe natif Streamlit pour un joli rendu
-            st.dataframe(df_repartition, use_container_width=True, hide_index=True)
-            
-            # Si on veut aller plus loin : Calcul du volume (tonnage)
-            if "Poids_Reel_Kg" in df_realise.columns and "Reps_Reelles" in df_realise.columns:
-                df_realise["Tonnage"] = df_realise["Poids_Reel_Kg"] * df_realise["Reps_Reelles"]
-                tonnage_total = df_realise["Tonnage"].sum()
-                if tonnage_total > 0:
-                    st.success(f"🏋️‍♂️ Tonnage total soulevé depuis le début : **{tonnage_total:,.0f} kg**")
+    
                     
                     
 # ---- PAGE 4 : CRÉATEUR DE PROGRAMME ----
