@@ -379,8 +379,8 @@ if page == "Check-in Matinal":
             st.error(f"Erreur lors de la sauvegarde : {e}")
 
 # ---- PAGE 2 : SEANCE DU JOUR ----
-elif page == "Ma Seance du Jour":
-    st.header("Ma Seance du Jour")
+elif page == "Ma Séance du Jour":
+    st.header("Ma Séance du Jour")
 
     # --- INJECTION DE CSS POUR LE DESIGN DES ZONES CARDIAQUES ---
     st.markdown("""
@@ -669,7 +669,7 @@ elif page == "Mes Stats":
                     
                     
 # ---- PAGE 4 : CRÉATEUR DE PROGRAMME ----
-elif page == "Créateur de Programme":
+elif page == "Coach IA & Programme":
     st.header("🛠️ Gestion du Programme")
     
     tab1, tab2 = st.tabs([" Saisie Rapide (Historique)", "🤖 Génération par l'IA"])
