@@ -478,6 +478,7 @@ elif page == "Créateur de Programme":
                 ]
                 try:
                     save_nouveau_programme(nouvelle_ligne_prog) 
+                    st.cache_data.clear()
                     st.success(f"✅ Ajouté avec succès à ta semaine {semaine} !")
                     st.balloons()
                 except Exception as e:
