@@ -89,7 +89,7 @@ if page == "Check-in Matinal":
         vfc = st.slider("VFC (manuellement)", 20, 100, 55)
     with col3:
         energie = st.slider("Niveau d'energie", 1, 10, 7)
-        st.caption("🔋 1-3: Épuisé | 4-6: Normal | 7-8: En forme | 9-10: Prêt à battre des records")
+        st.caption(" 1-3: Épuisé | 4-6: Normal | 7-8: En forme | 9-10: Prêt à battre des records")
 
     st.divider()
     
@@ -121,7 +121,7 @@ if page == "Check-in Matinal":
             st.session_state['dernier_clic'] = coords_actuelles
             x, y = coords_actuelles
             
-            # st.caption(f"📍 Clic détecté : X={x}, Y={y}") # Tu peux effacer cette ligne si tu n'en as plus besoin
+            # st.caption(f"📍Clic détecté : X={x}, Y={y}") # Tu peux effacer cette ligne si tu n'en as plus besoin
 
             # --- TA CALIBRATION SUR MESURE ---
             if x < 300: # --- FACE AVANT ---
@@ -202,7 +202,7 @@ elif page == "Ma Seance du Jour":
         semaine = st.selectbox("Semaine", sorted(df["Semaine"].unique()))
         seances_semaine = df[df["Semaine"] == semaine]
         options_seances = seances_semaine['Type_Seance'].unique()
-        choix_seance = st.selectbox("🎯 Quelle séance veux-tu faire ?", options_seances)
+        choix_seance = st.selectbox("Quelle séance veux-tu faire ?", options_seances)
         
         seance_df = seances_semaine[seances_semaine["Type_Seance"] == choix_seance]
         jour_theorique = seance_df["Jour"].iloc[0]
@@ -231,19 +231,19 @@ elif page == "Ma Seance du Jour":
             if est_une_course or est_un_wod:
                 # --- INTERFACE COMMUNE HYROX ET COURSE ---
                 if est_une_course:
-                    st.info("🏃‍♂️ Séance de course détectée !")
+                    st.info(" Séance de course détectée !")
                     col1, col2 = st.columns(2)
                     with col1: distance = st.number_input("Distance (km)", min_value=0.0, step=0.1, value=5.0)
                     with col2: duree_totale = st.number_input("Durée totale (min)", min_value=0, step=1, value=30)
                 else:
-                    st.info("🔥 Séance métabolique détectée !")
+                    st.info("Séance métabolique détectée !")
                     col1, col2 = st.columns(2)
                     with col1: duree_totale = st.number_input("Durée totale (min)", min_value=0, step=1, value=45)
                     with col2: format_wod = st.selectbox("Format", ["Solo", "Duo", "Team"])
                     distance = 0.0 # Pas de distance stricte pour le WOD global
 
                 # --- LE BEAU DESIGN DES ZONES CARDIAQUES ---
-                st.write("❤️ **Zones de fréquence cardiaque**")
+                st.write(" **Zones de fréquence cardiaque**")
                 st.caption("Minutes passées dans chaque zone. Le total devrait correspondre à la durée de ta séance.")
                 
                 cz1, cz2, cz3, cz4, cz5 = st.columns(5)
@@ -276,12 +276,12 @@ elif page == "Ma Seance du Jour":
                     st.write("📸 Scanner le tableau de la Box")
                     photo_tableau = st.file_uploader("Upload la photo du WOD", type=['png', 'jpg', 'jpeg'])
                     if photo_tableau is not None:
-                        st.success("✅ Image chargée !")
+                        st.success(" Image chargée !")
                         texte_wod_decode = st.text_area("Exercices détectés par l'IA (corrige si besoin) :", value="1000m Run\n50 Wall Balls\n1000m Row...")
 
                 st.divider()
                 session_rpe = st.slider("Note globale de la séance (RPE)", 1, 10, 7)
-                st.caption("🔥 1-2: Très facile | 3-4: Facile | 5-6: Modéré | 7-8: Difficile | 9: Très difficile | 10: Effort maximal")
+                st.caption("1-2: Très facile | 3-4: Facile | 5-6: Modéré | 7-8: Difficile | 9: Très difficile | 10: Effort maximal")
 
                 # --- BOUTON DE SAUVEGARDE COMMUN COURSE/WOD ---
                 if st.button("Enregistrer la séance", type="primary"):
@@ -305,7 +305,7 @@ elif page == "Ma Seance du Jour":
                     
                     try:
                         save_performance([ligne_sauvegarde])
-                        st.success(f"✅ Séance enregistrée pour ce {vrai_jour_actuel} !")
+                        st.success(f"Séance enregistrée pour ce {vrai_jour_actuel} !")
                         st.balloons()
                     except Exception as e:
                         st.error(f"Erreur : {e}")
