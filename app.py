@@ -10,8 +10,6 @@ from streamlit_image_coordinates import streamlit_image_coordinates
 import google.generativeai as genai
 
 
-
-
 # --- CONFIGURATION DE L'IA GEMINI ---
 try:
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
@@ -210,20 +208,6 @@ st.title("Dynamic Hybrid Coach")
 st.subheader("Ton coach personnel : Entrainement Hybride")
 st.divider()
 
-# --- NAVIGATION SIDEBAR AMÉLIORÉE ---
-with st.sidebar:
-    st.title("Hybrid Coach")
-    st.image("https://cdn-icons-png.flaticon.com/512/1099/1099672.png", width=100) # Un petit logo d'haltère
-    st.divider()
-    
-    page = st.radio(
-        "Menu Principal",
-        [" Check-in Matinal", "Ma Séance du Jour", "Mes Stats", "Coach IA & Programme"],
-        index=0
-    )
-    
-    st.divider()
-    st.info("Version 3.0 - Intelligence Artificielle activée")
 
 # --- OPTION DE CORRECTION RAPIDE ---
 st.sidebar.divider()
