@@ -9,45 +9,7 @@ from google.oauth2.service_account import Credentials
 from streamlit_image_coordinates import streamlit_image_coordinates
 import google.generativeai as genai
 
-# --- STYLE CSS PERSONNALISÉ ---
-st.markdown("""
-    <style>
-    /* Fond de l'application */
-    .stApp {
-        background-color: #0e1117;
-    }
-    
-    /* Style des boutons principaux */
-    .stButton>button {
-        border-radius: 20px;
-        border: none;
-        background: linear-gradient(45deg, #FF4B4B, #FF8F8F);
-        color: white;
-        font-weight: bold;
-        transition: 0.3s;
-        width: 100%;
-    }
-    .stButton>button:hover {
-        transform: scale(1.02);
-        box-shadow: 0px 4px 15px rgba(255, 75, 75, 0.4);
-    }
 
-    /* Style des cartes (Metrics) */
-    [data-testid="stMetricValue"] {
-        font-size: 28px;
-        color: #FF4B4B;
-    }
-
-    /* Sidebar personnalisée */
-    .css-1d391kg {
-        background-color: #161b22;
-    }
-    
-    /* Cacher le menu Streamlit par défaut pour faire "App Pro" */
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    </style>
-    """, unsafe_allow_html=True)
 
 
 # --- CONFIGURATION DE L'IA GEMINI ---
