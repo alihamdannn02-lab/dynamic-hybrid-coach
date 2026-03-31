@@ -395,16 +395,14 @@ elif page == "Mes Stats":
 elif page == "Créateur de Programme":
     st.header("🛠️ Gestion du Programme")
     
-    # On crée deux beaux onglets
     tab1, tab2 = st.tabs(["✍️ Saisie Rapide (Historique)", "🤖 Génération par l'IA"])
 
     # ---------------------------------------------------------
     # ONGLET 1 : SAISIE INTELLIGENTE BASÉE SUR TON HISTORIQUE
     # ---------------------------------------------------------
     with tab1:
-        st.write("Ajoute un exercice en piochant dans ta base de données.")
+        st.write("Ajoute un exercice ou une séance complète dans ton programme.")
         
-        # On charge l'historique pour récupérer tes habitudes
         try:
             df = load_programme()
             liste_seances = df["Type_Seance"].dropna().unique().tolist()
@@ -413,62 +411,85 @@ elif page == "Créateur de Programme":
             liste_seances = []
             liste_exos = []
 
-        # On ajoute l'option de créer quelque chose de nouveau
         options_seances = ["-- Nouvelle séance --"] + liste_seances
         options_exos = ["-- Nouvel exercice --"] + liste_exos
 
-        with st.form("form_programme"):
-            col1, col2 = st.columns(2)
-            with col1:
-                semaine = st.number_input("Semaine n°", min_value=1, step=1, value=1)
-                jour = st.selectbox("Jour théorique", ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"])
-            with col2:
-                # Menu déroulant intelligent pour la Séance
-                choix_seance = st.selectbox("Nom de la séance", options_seances)
-                if choix_seance == "-- Nouvelle séance --":
-                    type_seance = st.text_input("📝 Nom de la NOUVELLE séance (ex: Upper Body)")
-                else:
-                    type_seance = choix_seance
+        # LIGNE 1 : Le contexte (Semaine, Jour, Nom de la séance)
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            semaine = st.number_input("Semaine n°", min_value=1, step=1, value=1)
+        with col2:
+            jour = st.selectbox("Jour théorique", ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"])
+        with col3:
+            choix_seance = st.selectbox("Nom de la séance", options_seances)
+            if choix_seance == "-- Nouvelle séance --":
+                type_seance = st.text_input("📝 Nom (ex: Upper Body, Hyrox, Course)")
+            else:
+                type_seance = choix_seance
 
-                # Menu déroulant intelligent pour l'Exercice
-                choix_exo = st.selectbox("Exercice", options_exos)
-                if choix_exo == "-- Nouvel exercice --":
-                    exercice = st.text_input("📝 Nom du NOUVEL exercice (ex: Développé couché)")
-                else:
-                    exercice = choix_exo
+        st.divider()
 
-            col3, col4, col5 = st.columns(3)
-            with col3:
+        # --- LE CERVEAU DYNAMIQUE ---
+        # On vérifie en temps réel si tu as tapé un mot clé Cardio/Hyrox
+        type_seance_lower = str(type_seance).lower() if type_seance else ""
+        mots_cles_cardio_wod = ["hyrox", "wod", "circuit", "conditioning", "boxing", "boxe", "course", "run", "fractionné", "piste", "endurance", "z2"]
+        est_cardio_wod = any(mot in type_seance_lower for mot in mots_cles_cardio_wod)
+
+        # LIGNE 2 : Les détails (qui s'adaptent selon la séance)
+        if est_cardio_wod:
+            # INTERFACE HYROX / COURSE
+            st.info("🔥 Séance métabolique / Cardio détectée ! L'interface s'adapte.")
+            col_a, col_b = st.columns(2)
+            with col_a:
+                exercice = st.text_input("Détails / Format", value="WOD Global", help="Ex: Course 5km, WOD Solo, Sac de frappe...")
+            with col_b:
+                duree = st.number_input("Durée totale estimée (min)", min_value=1, step=1, value=45)
+            
+            # On force les valeurs "muscu" à 0 pour garder le Google Sheets propre
+            series = 0
+            reps = f"{duree} min"
+            poids = 0.0
+            
+        else:
+            # INTERFACE MUSCU CLASSIQUE
+            st.info("🏋️‍♂️ Séance de Musculation détectée.")
+            choix_exo = st.selectbox("Exercice", options_exos)
+            if choix_exo == "-- Nouvel exercice --":
+                exercice = st.text_input("📝 Nom du NOUVEL exercice (ex: Développé couché)")
+            else:
+                exercice = choix_exo
+
+            col_a, col_b, col_c = st.columns(3)
+            with col_a:
                 series = st.number_input("Séries cibles", min_value=1, step=1, value=4)
-            with col4:
-                reps = st.text_input("Reps / Durée", value="10")
-            with col5:
+            with col_b:
+                reps = st.text_input("Reps", value="10")
+            with col_c:
                 poids = st.number_input("Poids cible (kg)", min_value=0.0, step=0.5, value=0.0)
 
-            submit = st.form_submit_button("➕ Ajouter au Google Sheets", type="primary")
-
-            if submit:
-                if not type_seance or not exercice:
-                    st.error("⚠️ Le nom de la séance et de l'exercice sont obligatoires.")
-                else:
-                    nouvelle_ligne_prog = [
-                        int(semaine), str(jour), str(type_seance), 
-                        str(exercice), int(series), str(reps), float(poids)
-                    ]
-                    try:
-                        save_nouveau_programme(nouvelle_ligne_prog) 
-                        st.success(f"✅ L'exercice '{exercice}' a bien été ajouté à ta semaine {semaine} !")
-                    except Exception as e:
-                        st.error(f"Erreur de connexion : {e} (Vérifie bien le nom de ton onglet dans Sheets !)")
+        # BOUTON DE SAUVEGARDE
+        if st.button("➕ Ajouter au Programme (Google Sheets)", type="primary"):
+            if not type_seance or not exercice:
+                st.error("⚠️ Le nom de la séance et de l'exercice sont obligatoires.")
+            else:
+                nouvelle_ligne_prog = [
+                    int(semaine), str(jour), str(type_seance), 
+                    str(exercice), int(series), str(reps), float(poids)
+                ]
+                try:
+                    save_nouveau_programme(nouvelle_ligne_prog) 
+                    st.success(f"✅ Ajouté avec succès à ta semaine {semaine} !")
+                    st.balloons()
+                except Exception as e:
+                    st.error(f"Erreur de connexion : {e}")
 
     # ---------------------------------------------------------
     # ONGLET 2 : LE COACH IA (Préparation)
     # ---------------------------------------------------------
     with tab2:
         st.subheader("🧠 Générateur de Séance IA")
-        st.info("L'IA va bientôt pouvoir analyser ton Check-in Matinal (Sommeil, VFC, Fatigue), croiser ça avec tes anciens exercices, et te pondre la séance hybride parfaite pour aujourd'hui.")
+        st.info("L'IA va bientôt pouvoir analyser ton Check-in Matinal, croiser ça avec tes anciens exercices, et te pondre la séance hybride parfaite pour aujourd'hui.")
         
-        # Interface de test en attendant de brancher l'API OpenAI
         objectif_ia = st.selectbox("Quel est l'objectif du jour ?", ["Gérer la fatigue (Active Recovery)", "Exploser les chronos (Conditioning)", "Force pure (Hypertrophie/Force)"])
         
         if st.button("✨ Générer ma séance", type="primary"):
@@ -480,4 +501,3 @@ elif page == "Créateur de Programme":
             st.write("- 400m Run")
             st.write("- 15 Kettlebell Swings")
             st.write("- 10 Burpees")
-            st.caption("(Dès que nous aurons branché ta clé API OpenAI, cette séance s'adaptera réellement à tes vraies données !)")
