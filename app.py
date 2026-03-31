@@ -660,7 +660,9 @@ elif page == "Coach IA & Programme":
         col1, col2, col3 = st.columns(3)
         with col1:
             # On utilise "semaine_actuelle" comme minimum et valeur par défaut !
-            semaine = st.number_input("Semaine n°", min_value=semaine_actuelle, step=1, value=semaine_actuelle)
+            semaine_proposee = semaine_actuelle + 1  # On propose toujours la semaine suivante
+            semaine = st.number_input("Semaine n°", min_value=1, step=1, value=semaine_proposee)
+            
         with col2:
             jour = st.selectbox("Jour théorique", ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"])
         with col3:
