@@ -237,8 +237,8 @@ if st.sidebar.button("🗑️ Annuler ma dernière séance"):
         st.sidebar.error(message)
         
 # ---- PAGE 1 : CHECK-IN MATINAL ----
-if page == "Check-in Matinal":
-    st.header("Check-in Matinal")
+if page == " Check-in Matinal":
+    st.header(" Check-in Matinal")
     st.write("Comment tu te sens ce matin ?")
 
     col1, col2, col3 = st.columns(3)
