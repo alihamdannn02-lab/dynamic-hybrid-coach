@@ -176,8 +176,7 @@ def generer_seance_ia(energie, sommeil, courbatures, objectif):
     except Exception as e:
         return False, f"Erreur de formatage du cerveau IA : {e}"
 
-def sauvegarder_seance_ia_programme(titre, df_exos):
-    # On va enregistrer cette séance dans une "Semaine 99" pour qu'elle soit facile à retrouver !
+def sauvegarder_seance_ia_programme(titre, df_exos, semaine, jour):
     try:
         client = connect_sheets()
         sheet = client.open("DB_Dynamic_Hybrid_Coach")
@@ -186,15 +185,15 @@ def sauvegarder_seance_ia_programme(titre, df_exos):
         lignes_a_ajouter = []
         for idx, row in df_exos.iterrows():
             lignes_a_ajouter.append([
-                99, # Semaine 99 (Spéciale IA)
-                "Jour IA", # Jour
-                str(titre), # Type de séance (Titre généré)
+                int(semaine), 
+                str(jour),    # <--- On utilise maintenant le vrai jour !
+                str(titre), 
                 str(row["Exercice"]),
                 int(row["Séries"]),
                 int(row["Reps"]),
                 float(row["Poids (kg)"]),
-                "", # Format Hyrox
-                "IA" # Tags
+                "", 
+                "IA" 
             ])
             
         worksheet.append_rows(lignes_a_ajouter)
@@ -739,10 +738,13 @@ elif page == "Créateur de Programme":
                     st.error(f"Erreur de connexion : {e}")
 
     # ---------------------------------------------------------
-    # ONGLET 2 : LE COACH IA (GÉNÉRATION DYNAMIQUE)
+    # ONGLET 2 : LE COACH IA (DYNAMIQUE)
     # ---------------------------------------------------------
     with tab2:
         st.subheader("🧠 Générer une séance avec l'IA")
+        
+        # On affiche un petit rappel de la destination
+        st.warning(f"📍 Destination : **Semaine {semaine} - {jour}**")
         
         # INITIALISATION DE LA MÉMOIRE (SESSION STATE)
         if "seance_ia_generee" not in st.session_state:
@@ -793,16 +795,17 @@ elif page == "Créateur de Programme":
                 df_exos.columns = ["Exercice", "Séries", "Reps", "Poids (kg)"]
                 st.dataframe(df_exos, use_container_width=True, hide_index=True)
             
-            st.write("**Que veux-tu faire de cette séance ?**")
+            st.write(f"**Cette séance sera ajoutée à ton programme le {jour} de la Semaine {semaine}.**")
             col_action1, col_action2 = st.columns(2)
             
             with col_action1:
-                if st.button("✅ L'accepter et l'ajouter au programme"):
-                    with st.spinner("Sauvegarde dans le Google Sheets..."):
-                        if sauvegarder_seance_ia_programme(seance.get('titre', 'Séance IA'), df_exos):
-                            st.success("✅ WOD ajouté ! Va dans 'Ma Séance du Jour' et sélectionne la Semaine 99 pour le faire !")
-                            st.session_state.seance_ia_generee = None # On vide la mémoire
-                            st.cache_data.clear() # On met à jour l'application
+                if st.button("✅ L'accepter et l'ajouter"):
+                    with st.spinner("Sauvegarde en cours..."):
+                        # ON PASSE LES DEUX VARIABLES ICI
+                        if sauvegarder_seance_ia_programme(seance.get('titre', 'Séance IA'), df_exos, semaine, jour):
+                            st.success(f"✅ Séance ajoutée au {jour} de la Semaine {semaine} !")
+                            st.session_state.seance_ia_generee = None 
+                            st.cache_data.clear() 
                             st.balloons()
                         else:
                             st.error("Erreur lors de la sauvegarde.")
