@@ -45,6 +45,27 @@ def load_programme():
     data = worksheet.get_all_records()
     return pd.DataFrame(data)
 
+@st.cache_data(ttl=300)
+def load_historique_realise():
+    try:
+        client = connect_sheets()
+        sheet = client.open("DB_Dynamic_Hybrid_Coach")
+        worksheet = sheet.worksheet("Historique_Realise")
+        data = worksheet.get_all_records()
+        return pd.DataFrame(data)
+    except:
+        return pd.DataFrame()
+
+@st.cache_data(ttl=300)
+def load_historique_checkin():
+    try:
+        client = connect_sheets()
+        sheet = client.open("DB_Dynamic_Hybrid_Coach")
+        worksheet = sheet.worksheet("Historique_Checkin")
+        data = worksheet.get_all_records()
+        return pd.DataFrame(data)
+    except:
+        return pd.DataFrame()
 def save_nouveau_programme(ligne_donnees):
     client = connect_sheets()
     sheet = client.open("DB_Dynamic_Hybrid_Coach")
@@ -393,37 +414,77 @@ elif page == "Ma Seance du Jour":
         st.error(f"Erreur de connexion au programme : {e}")
         
 # ---- PAGE 3 : STATS ----
-
 elif page == "Mes Stats":
-    st.header("Mes Stats")
+    st.header("📊 Mon Tableau de Bord")
+    st.write("Analyse de tes performances et de ta récupération en temps réel.")
 
-    try:
-        df = load_programme()
-        st.success(f"Google Sheets connecte — {len(df)} exercices charges.")
+    # Chargement des vraies données
+    df_realise = load_historique_realise()
+    df_checkin = load_historique_checkin()
 
-        data_demo = {
-            'Semaine': [1, 2, 3, 4, 5],
-            'Session_RPE_Moyen': [7.2, 7.8, 6.9, 8.1, 7.5],
-            'Sommeil_Moyen': [7.1, 6.8, 7.5, 6.2, 7.3],
-            'VFC_Moyen': [55, 52, 58, 48, 56]
-        }
-        df_demo = pd.DataFrame(data_demo)
+    if df_realise.empty and df_checkin.empty:
+        st.info("Oups ! Tes bases de données sont vides pour le moment. Fais quelques séances et check-ins pour voir la magie opérer !")
+    else:
+        # --- SECTION 1 : LES KPI (Indicateurs Clés) ---
+        st.subheader("💡 Indicateurs Globaux")
+        col1, col2, col3, col4 = st.columns(4)
+        
+        # Calculs sécurisés
+        nb_seances = len(df_realise["Date"].unique()) if not df_realise.empty and "Date" in df_realise.columns else 0
+        rpe_moyen = round(df_realise["Session_RPE"].mean(), 1) if not df_realise.empty and "Session_RPE" in df_realise.columns else 0.0
+        sommeil_moyen = round(df_checkin["Heures_Sommeil"].mean(), 1) if not df_checkin.empty and "Heures_Sommeil" in df_checkin.columns else 0.0
+        vfc_moyenne = int(df_checkin["VFC"].mean()) if not df_checkin.empty and "VFC" in df_checkin.columns else 0
 
-        col1, col2, col3 = st.columns(3)
         with col1:
-            st.metric("RPE Moyen", "7.5", "+0.3")
+            st.metric("Séances réalisées", f"{nb_seances}")
         with col2:
-            st.metric("Sommeil Moyen", "7.2h", "-0.3h")
+            st.metric("RPE Moyen", f"{rpe_moyen} / 10")
         with col3:
-            st.metric("VFC Moyen", "55 ms", "+3ms")
+            st.metric("Sommeil Moyen", f"{sommeil_moyen} h")
+        with col4:
+            st.metric("VFC Moyenne", f"{vfc_moyenne} ms")
 
         st.divider()
-        st.subheader("Tendance RPE vs Sommeil")
-        st.line_chart(df_demo.set_index('Semaine')[['Session_RPE_Moyen', 'Sommeil_Moyen']])
 
-    except Exception as e:
-        st.error(f"Erreur de connexion au Google Sheets : {e}")
+        # --- SECTION 2 : GRAPHIQUES DE PERFORMANCE ---
+        col_chart1, col_chart2 = st.columns(2)
 
+        with col_chart1:
+            st.subheader("📈 Évolution de la Difficulté (RPE)")
+            if not df_realise.empty and "Date" in df_realise.columns and "Session_RPE" in df_realise.columns:
+                # On groupe par date pour ne pas avoir 10 points le même jour (à cause des séries multiples)
+                df_rpe = df_realise.groupby("Date")["Session_RPE"].mean().reset_index()
+                st.line_chart(df_rpe.set_index("Date")["Session_RPE"])
+            else:
+                st.caption("Pas encore assez de données de séances.")
+
+        with col_chart2:
+            st.subheader("🔋 Tendance du Sommeil")
+            if not df_checkin.empty and "Date" in df_checkin.columns and "Heures_Sommeil" in df_checkin.columns:
+                df_sommeil = df_checkin.groupby("Date")["Heures_Sommeil"].mean().reset_index()
+                st.bar_chart(df_sommeil.set_index("Date")["Heures_Sommeil"], color="#5dade2")
+            else:
+                st.caption("Pas encore assez de données de check-in.")
+
+        st.divider()
+
+        # --- SECTION 3 : RÉPARTITION DE L'ENTRAÎNEMENT ---
+        st.subheader("🔥 Répartition de l'effort")
+        if not df_realise.empty and "Type_Seance" in df_realise.columns:
+            # On compte le nombre d'exercices/séries par type de séance
+            df_repartition = df_realise["Type_Seance"].value_counts().reset_index()
+            df_repartition.columns = ["Type de Séance", "Volume (Lignes)"]
+            
+            # Utilisation d'un dataframe natif Streamlit pour un joli rendu
+            st.dataframe(df_repartition, use_container_width=True, hide_index=True)
+            
+            # Si on veut aller plus loin : Calcul du volume (tonnage)
+            if "Poids_Reel_Kg" in df_realise.columns and "Reps_Reelles" in df_realise.columns:
+                df_realise["Tonnage"] = df_realise["Poids_Reel_Kg"] * df_realise["Reps_Reelles"]
+                tonnage_total = df_realise["Tonnage"].sum()
+                if tonnage_total > 0:
+                    st.success(f"🏋️‍♂️ Tonnage total soulevé depuis le début : **{tonnage_total:,.0f} kg**")
+                    
 # ---- PAGE 4 : CRÉATEUR DE PROGRAMME ----
 elif page == "Créateur de Programme":
     st.header("🛠️ Gestion du Programme")
