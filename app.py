@@ -56,6 +56,14 @@ def save_checkin(ligne_donnees):
     sheet = client.open("DB_Dynamic_Hybrid_Coach")
     worksheet = sheet.worksheet("Historique_Checkin")
     worksheet.append_row(ligne_donnees)
+
+def save_performance(lignes_donnees):
+    client = connect_sheets()
+    sheet = client.open("DB_Dynamic_Hybrid_Coach")
+    # On cible l'onglet où tu enregistres tes vraies performances
+    worksheet = sheet.worksheet("Historique_Realise")
+    # On utilise append_rows avec un "s" car on envoie parfois plusieurs lignes d'un coup (muscu)
+    worksheet.append_rows(lignes_donnees)
     
 # ---- HEADER ----
 st.title("Dynamic Hybrid Coach")
