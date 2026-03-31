@@ -666,6 +666,12 @@ elif page == "Mes Stats":
         st.divider()
         
         # --- DANS LA PAGE MES STATS ---
+elif page == "📊 Mes Stats":
+    st.header("📊 Analyse de tes Performances")
+    
+    # --- CHARGEMENT DES DONNÉES (L'étape manquante !) ---
+    df_perfs = load_seances_realisees() # Cette fonction doit exister dans ton code
+    df_checkin = load_historique_checkin()
 if not df_perfs.empty:
     st.subheader("📈 Analyse de la Charge de Travail")
     
