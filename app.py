@@ -588,8 +588,14 @@ elif page == "Mes Stats":
         col1, col2, col3, col4 = st.columns(4)
         nb_seances = len(df_realise.groupby(["Date", "Type_Seance"])) if not df_realise.empty and "Date" in df_realise.columns else 0
         rpe_moyen = round(df_realise["Session_RPE"].mean(), 1) if not df_realise.empty and "Session_RPE" in df_realise.columns else 0.0
-        sommeil_moyen = round(df_checkin["Heures_Sommeil"].mean(), 1) if not df_checkin.empty and "Heures_Sommeil" in df_checkin.columns else 0.0
-        vfc_moyenne = int(df_checkin["VFC"].mean()) if not df_checkin.empty and "VFC" in df_checkin.columns else 0
+        try:
+            sommeil_moyen = round(pd.to_numeric(df_checkin["Heures_Sommeil"], errors="coerce").mean(), 1) if not df_checkin.empty else 0.0
+        except:
+            sommeil_moyen = 0.0
+        try:
+            vfc_moyenne = int(pd.to_numeric(df_checkin["VFC"], errors="coerce").mean()) if not df_checkin.empty else 0
+        except:
+            vfc_moyenne = 0
         with col1: st.metric("Séances réalisées", f"{nb_seances}")
         with col2: st.metric("RPE Moyen", f"{rpe_moyen} / 10")
         with col3: st.metric("Sommeil Moyen", f"{sommeil_moyen} h")
@@ -639,12 +645,12 @@ elif page == "Mes Stats":
         st.subheader("🕸️ Radar — Balance Musculaire")
         if not df_realise.empty and "Type_Seance" in df_realise.columns:
             groupes = {
-                "Push (Haut)": ["upper", "push", "pec", "épaule", "shoulder", "chest"],
-                "Pull (Dos)": ["pull", "dos", "back", "row", "traction"],
-                "Legs": ["leg", "squat", "jambe", "quadri", "ischios", "fessier"],
-                "Cardio": ["course", "run", "hyrox", "wod", "z2", "cardio", "boxe"],
-                "Core": ["core", "abdo", "gainage", "plank"],
-                "Récupération": ["repos", "rest", "recovery", "récupération"]
+            "Push (Haut)": ["upper_body", "upper"],
+            "Pull (Dos)": ["pull", "dos", "back", "calisthenics_grip", "calisthenics"],
+            "Legs": ["lower_body", "lower", "leg"],
+            "Cardio": ["endurance", "hybrid_conditioning", "course", "run", "hyrox", "wod", "z2"],
+            "Core": ["core", "abdo", "gainage"],
+            "Récupération": ["repos", "rest", "recovery"]
             }
             scores = {}
             for groupe, mots in groupes.items():
