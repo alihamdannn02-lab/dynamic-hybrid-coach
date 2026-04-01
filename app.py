@@ -645,7 +645,7 @@ elif page == "Mes Stats":
         st.subheader("🕸️ Radar — Balance Musculaire")
         if not df_realise.empty and "Type_Seance" in df_realise.columns:
             groupes = {
-            "Push (Haut)": ["upper_body", "upper"],
+            "Push (Haut)": ["upper_body_1", "upper_body_2", "upper_body", "upper"],
             "Pull (Dos)": ["pull", "dos", "back", "calisthenics_grip", "calisthenics"],
             "Legs": ["lower_body", "lower", "leg"],
             "Cardio": ["endurance", "hybrid_conditioning", "course", "run", "hyrox", "wod", "z2"],
@@ -732,6 +732,7 @@ elif page == "Mes Stats":
             try:
                 df_vol = df_realise.copy()
                 df_vol["Volume"] = df_vol["Poids_Reel_Kg"] * df_vol["Reps_Reelles"]
+                df_vol["Date"] = pd.to_datetime(df_vol["Date"]).dt.date
                 df_vol_groupe = df_vol.groupby("Date")["Volume"].sum().reset_index()
                 df_vol_groupe["Moyenne_Mobile"] = df_vol_groupe["Volume"].rolling(window=3, min_periods=1).mean()
 
