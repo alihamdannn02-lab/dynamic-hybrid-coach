@@ -570,60 +570,193 @@ elif page == "Ma Séance du Jour":
     except Exception as e:
         st.error(f"Erreur de connexion au programme : {e}")
         
-# ---- PAGE 3 : STATS ----
 elif page == "Mes Stats":
     st.header("📊 Mon Tableau de Bord")
     st.write("Analyse de tes performances et de ta récupération en temps réel.")
 
-    # Chargement des vraies données
+    import plotly.express as px
+    import plotly.graph_objects as go
+
     df_realise = load_historique_realise()
     df_checkin = load_historique_checkin()
 
     if df_realise.empty and df_checkin.empty:
-        st.info("Oups ! Tes bases de données sont vides pour le moment. Fais quelques séances et check-ins pour voir la magie opérer !")
+        st.info("Tes bases de données sont vides. Fais quelques séances pour voir la magie opérer !")
     else:
-        # --- SECTION 1 : LES KPI (Indicateurs Clés) ---
+        # --- KPIs ---
         st.subheader("💡 Indicateurs Globaux")
         col1, col2, col3, col4 = st.columns(4)
-        
-        # Calculs sécurisés
         nb_seances = len(df_realise["Date"].unique()) if not df_realise.empty and "Date" in df_realise.columns else 0
         rpe_moyen = round(df_realise["Session_RPE"].mean(), 1) if not df_realise.empty and "Session_RPE" in df_realise.columns else 0.0
         sommeil_moyen = round(df_checkin["Heures_Sommeil"].mean(), 1) if not df_checkin.empty and "Heures_Sommeil" in df_checkin.columns else 0.0
         vfc_moyenne = int(df_checkin["VFC"].mean()) if not df_checkin.empty and "VFC" in df_checkin.columns else 0
-
-        with col1:
-            st.metric("Séances réalisées", f"{nb_seances}")
-        with col2:
-            st.metric("RPE Moyen", f"{rpe_moyen} / 10")
-        with col3:
-            st.metric("Sommeil Moyen", f"{sommeil_moyen} h")
-        with col4:
-            st.metric("VFC Moyenne", f"{vfc_moyenne} ms")
+        with col1: st.metric("Séances réalisées", f"{nb_seances}")
+        with col2: st.metric("RPE Moyen", f"{rpe_moyen} / 10")
+        with col3: st.metric("Sommeil Moyen", f"{sommeil_moyen} h")
+        with col4: st.metric("VFC Moyenne", f"{vfc_moyenne} ms")
 
         st.divider()
 
-        # --- SECTION 2 : GRAPHIQUES DE PERFORMANCE ---
-        col_chart1, col_chart2 = st.columns(2)
-
-        with col_chart1:
-            st.subheader("📈 Évolution de la Difficulté (RPE)")
-            if not df_realise.empty and "Date" in df_realise.columns and "Session_RPE" in df_realise.columns:
-                # On groupe par date pour ne pas avoir 10 points le même jour (à cause des séries multiples)
-                df_rpe = df_realise.groupby("Date")["Session_RPE"].mean().reset_index()
-                st.line_chart(df_rpe.set_index("Date")["Session_RPE"])
-            else:
-                st.caption("Pas encore assez de données de séances.")
-
-        with col_chart2:
-            st.subheader("🔋 Tendance du Sommeil")
-            if not df_checkin.empty and "Date" in df_checkin.columns and "Heures_Sommeil" in df_checkin.columns:
-                df_sommeil = df_checkin.groupby("Date")["Heures_Sommeil"].mean().reset_index()
-                st.bar_chart(df_sommeil.set_index("Date")["Heures_Sommeil"], color="#5dade2")
-            else:
-                st.caption("Pas encore assez de données de check-in.")
+        # ============================================================
+        # CHART 1 : RPE HEATMAP
+        # ============================================================
+        st.subheader("🔥 Heatmap d'Intensité (RPE par Semaine & Jour)")
+        if not df_realise.empty and "Semaine" in df_realise.columns and "Jour" in df_realise.columns and "Session_RPE" in df_realise.columns:
+            ordre_jours = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
+            df_heatmap = df_realise.groupby(["Semaine", "Jour"])["Session_RPE"].mean().reset_index()
+            df_pivot = df_heatmap.pivot(index="Jour", columns="Semaine", values="Session_RPE")
+            # Réordonner les jours
+            df_pivot = df_pivot.reindex([j for j in ordre_jours if j in df_pivot.index])
+            fig_heatmap = go.Figure(data=go.Heatmap(
+                z=df_pivot.values,
+                x=[f"S{s}" for s in df_pivot.columns],
+                y=df_pivot.index.tolist(),
+                colorscale="RdYlGn_r",
+                zmin=1, zmax=10,
+                text=[[f"{v:.1f}" if not np.isnan(v) else "" for v in row] for row in df_pivot.values],
+                texttemplate="%{text}",
+                showscale=True,
+                colorbar=dict(title="RPE")
+            ))
+            fig_heatmap.update_layout(
+                template="plotly_dark",
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                height=350,
+                margin=dict(l=20, r=20, t=20, b=20),
+                xaxis_title="Semaine",
+                yaxis_title=""
+            )
+            st.plotly_chart(fig_heatmap, use_container_width=True)
+        else:
+            st.caption("Pas encore assez de données.")
 
         st.divider()
+
+        # ============================================================
+        # CHART 2 : RADAR — BALANCE MUSCULAIRE
+        # ============================================================
+        st.subheader("🕸️ Radar — Balance Musculaire")
+        if not df_realise.empty and "Type_Seance" in df_realise.columns:
+            groupes = {
+                "Push (Haut)": ["upper", "push", "pec", "épaule", "shoulder", "chest"],
+                "Pull (Dos)": ["pull", "dos", "back", "row", "traction"],
+                "Legs": ["leg", "squat", "jambe", "quadri", "ischios", "fessier"],
+                "Cardio": ["course", "run", "hyrox", "wod", "z2", "cardio", "boxe"],
+                "Core": ["core", "abdo", "gainage", "plank"],
+                "Récupération": ["repos", "rest", "recovery", "récupération"]
+            }
+            scores = {}
+            for groupe, mots in groupes.items():
+                mask = df_realise["Type_Seance"].str.lower().apply(
+                    lambda x: any(m in x for m in mots)
+                )
+                scores[groupe] = int(mask.sum())
+
+            categories = list(scores.keys())
+            values = list(scores.values())
+            values_closed = values + [values[0]]
+            categories_closed = categories + [categories[0]]
+
+            fig_radar = go.Figure()
+            fig_radar.add_trace(go.Scatterpolar(
+                r=values_closed,
+                theta=categories_closed,
+                fill='toself',
+                fillcolor='rgba(255, 75, 75, 0.2)',
+                line=dict(color='#FF4B4B', width=2),
+                name="Séances"
+            ))
+            fig_radar.update_layout(
+                template="plotly_dark",
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                polar=dict(
+                    bgcolor="rgba(0,0,0,0)",
+                    radialaxis=dict(visible=True, color="gray")
+                ),
+                height=400,
+                margin=dict(l=40, r=40, t=40, b=40),
+                showlegend=False
+            )
+            st.plotly_chart(fig_radar, use_container_width=True)
+        else:
+            st.caption("Pas encore assez de données.")
+
+        st.divider()
+
+        # ============================================================
+        # CHART 3 : DONUT — ZONES CARDIAQUES
+        # ============================================================
+        st.subheader("❤️ Distribution des Zones Cardiaques")
+        colonnes_zones = ["Z1", "Z2", "Z3", "Z4", "Z5"]
+        if not df_realise.empty and all(c in df_realise.columns for c in colonnes_zones):
+            totaux_zones = df_realise[colonnes_zones].sum()
+            totaux_zones = totaux_zones[totaux_zones > 0]
+            if not totaux_zones.empty:
+                couleurs_zones = ["#5dade2", "#58d68d", "#f4d03f", "#e67e22", "#e74c3c"]
+                fig_donut = go.Figure(data=[go.Pie(
+                    labels=totaux_zones.index.tolist(),
+                    values=totaux_zones.values.tolist(),
+                    hole=0.55,
+                    marker=dict(colors=couleurs_zones[:len(totaux_zones)]),
+                    textinfo='label+percent',
+                    textfont=dict(size=13)
+                )])
+                fig_donut.update_layout(
+                    template="plotly_dark",
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    height=380,
+                    margin=dict(l=20, r=20, t=20, b=20),
+                    annotations=[dict(text="Zones<br>Cardio", x=0.5, y=0.5, font_size=14, showarrow=False, font_color="white")]
+                )
+                st.plotly_chart(fig_donut, use_container_width=True)
+            else:
+                st.caption("Aucune donnée de zone cardiaque enregistrée.")
+        else:
+            st.caption("Colonnes Z1-Z5 non trouvées dans les données.")
+
+        st.divider()
+
+        # ============================================================
+        # CHART 4 : VOLUME SOULEVÉ (BAR + LINE COMBO)
+        # ============================================================
+        st.subheader("📈 Volume Soulevé par Séance")
+        if not df_realise.empty and all(c in df_realise.columns for c in ["Date", "Poids_Reel_Kg", "Reps_Reelles"]):
+            try:
+                df_vol = df_realise.copy()
+                df_vol["Volume"] = df_vol["Poids_Reel_Kg"] * df_vol["Reps_Reelles"]
+                df_vol_groupe = df_vol.groupby("Date")["Volume"].sum().reset_index()
+                df_vol_groupe["Moyenne_Mobile"] = df_vol_groupe["Volume"].rolling(window=3, min_periods=1).mean()
+
+                fig_volume = go.Figure()
+                fig_volume.add_trace(go.Bar(
+                    x=df_vol_groupe["Date"],
+                    y=df_vol_groupe["Volume"],
+                    name="Volume (kg)",
+                    marker_color="rgba(255, 75, 75, 0.6)"
+                ))
+                fig_volume.add_trace(go.Scatter(
+                    x=df_vol_groupe["Date"],
+                    y=df_vol_groupe["Moyenne_Mobile"],
+                    name="Tendance (moy. 3j)",
+                    line=dict(color="#FF8F8F", width=2, dash="dot")
+                ))
+                fig_volume.update_layout(
+                    template="plotly_dark",
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    plot_bgcolor="rgba(0,0,0,0)",
+                    height=380,
+                    margin=dict(l=20, r=20, t=20, b=20),
+                    xaxis_title="Date",
+                    yaxis_title="Volume total (kg)",
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+                )
+                st.plotly_chart(fig_volume, use_container_width=True)
+            except Exception as e:
+                st.caption(f"Erreur calcul volume : {e}")
+        else:
+            st.caption("Colonnes de volume non trouvées. Vérifie les noms : Poids_Reel, Reps_Reelles, Series_Reelles.")
     
     
                     
