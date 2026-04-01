@@ -586,7 +586,7 @@ elif page == "Mes Stats":
         # --- KPIs ---
         st.subheader("💡 Indicateurs Globaux")
         col1, col2, col3, col4 = st.columns(4)
-        nb_seances = len(df_realise["Date"].unique()) if not df_realise.empty and "Date" in df_realise.columns else 0
+        nb_seances = len(df_realise.groupby(["Date", "Type_Seance"])) if not df_realise.empty and "Date" in df_realise.columns else 0
         rpe_moyen = round(df_realise["Session_RPE"].mean(), 1) if not df_realise.empty and "Session_RPE" in df_realise.columns else 0.0
         sommeil_moyen = round(df_checkin["Heures_Sommeil"].mean(), 1) if not df_checkin.empty and "Heures_Sommeil" in df_checkin.columns else 0.0
         vfc_moyenne = int(df_checkin["VFC"].mean()) if not df_checkin.empty and "VFC" in df_checkin.columns else 0
