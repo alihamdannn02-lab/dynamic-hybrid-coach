@@ -700,25 +700,47 @@ elif page == "Mes Stats":
 
         st.divider()
 
-        # --- SECTION 2 : ACWR (Charge Aiguë vs Chronique avec score de Borg) ---
+        # --- SECTION 2 : ACWR (Design Premium) ---
         st.subheader("🛡️ Risque de Blessure & Surcharge (Méthode de Borg)")
         
-        # Calcul de la charge par semaine
         charge_hebdo = seances.groupby('Semaine')['Charge_Borg'].sum().reset_index()
-        
-        # Calcul ACWR (Aiguë = Semaine N, Chronique = Moyenne des Semaines N, N-1, N-2, N-3)
         charge_hebdo['Charge_Chronique'] = charge_hebdo['Charge_Borg'].rolling(window=4, min_periods=1).mean()
         charge_hebdo['ACWR'] = charge_hebdo['Charge_Borg'] / charge_hebdo['Charge_Chronique']
         
         fig_acwr = make_subplots(specs=[[{"secondary_y": True}]])
-        fig_acwr.add_trace(go.Bar(x=charge_hebdo['Semaine'], y=charge_hebdo['Charge_Borg'], name="Charge Hebdo (Borg)", marker_color="#5dade2"), secondary_y=False)
-        fig_acwr.add_trace(go.Scatter(x=charge_hebdo['Semaine'], y=charge_hebdo['ACWR'], name="Ratio ACWR", mode="lines+markers", line=dict(color="#FF4B4B", width=3)), secondary_y=True)
         
-        # Zones de sécurité ACWR
-        fig_acwr.add_hrect(y0=0.8, y1=1.3, fillcolor="green", opacity=0.1, secondary_y=True, annotation_text="Zone Optimale")
-        fig_acwr.add_hrect(y0=1.5, y1=2.5, fillcolor="red", opacity=0.1, secondary_y=True, annotation_text="Danger (Surentraînement)")
+        # Barres de charge avec un rouge sombre transparent
+        fig_acwr.add_trace(go.Bar(
+            x=charge_hebdo['Semaine'], y=charge_hebdo['Charge_Borg'], 
+            name="Charge Hebdo", 
+            marker=dict(color='rgba(255, 75, 75, 0.4)', line=dict(color='#FF4B4B', width=1)),
+            hovertemplate="Semaine %{x}<br>Charge: %{y}<extra></extra>"
+        ), secondary_y=False)
         
-        fig_acwr.update_layout(title="Charge Hebdomadaire (sRPE) vs Ratio de Blessure", template="plotly_dark", height=400)
+        # Ligne de Ratio ACWR lissée (spline) avec marqueurs
+        fig_acwr.add_trace(go.Scatter(
+            x=charge_hebdo['Semaine'], y=charge_hebdo['ACWR'], 
+            name="Ratio ACWR", 
+            mode="lines+markers", 
+            line=dict(color="#00F0FF", width=3, shape='spline'), # Cyan néon fluide
+            marker=dict(size=8, color="#00F0FF", symbol='circle')
+        ), secondary_y=True)
+        
+        # Zones de sécurité esthétiques
+        fig_acwr.add_hrect(y0=0.8, y1=1.3, fillcolor="#00FF00", opacity=0.05, secondary_y=True, line_width=0)
+        fig_acwr.add_hrect(y0=1.5, y1=3.0, fillcolor="#FF0000", opacity=0.05, secondary_y=True, line_width=0)
+        
+        # Design général ultra-clean
+        fig_acwr.update_layout(
+            template="plotly_dark",
+            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", # Fond transparent
+            height=400,
+            margin=dict(l=0, r=0, t=30, b=0),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+            hovermode="x unified"
+        )
+        fig_acwr.update_yaxes(showgrid=False, secondary_y=False)
+        fig_acwr.update_yaxes(showgrid=True, gridcolor='rgba(255,255,255,0.1)', secondary_y=True)
         st.plotly_chart(fig_acwr, use_container_width=True)
 
         st.divider()
@@ -743,56 +765,82 @@ elif page == "Mes Stats":
 
         st.divider()
 
-        # --- SECTION 4 : SURCHARGE PROGRESSIVE (Poids & Reps par Exo) ---
+        # --- SECTION 4 : SURCHARGE PROGRESSIVE (Design Premium) ---
         st.subheader("📈 Surcharge Progressive par Exercice")
         
-        # On filtre les exos (on exclut les lignes de cardio "Bilan Course" etc.)
         liste_exos = [exo for exo in df_realise.iloc[:, 4].unique() if "Bilan" not in str(exo)]
         
         if liste_exos:
             exo_choisi = st.selectbox("Sélectionne un exercice pour analyser ta progression :", liste_exos)
             
             df_exo = df_realise[df_realise.iloc[:, 4] == exo_choisi].copy()
-            # On cherche le Poids Max et le Volume de Reps (Somme) par séance
-            prog_exo = df_exo.groupby('Date').agg(
-                Poids_Max=('Poids', 'max'),
-                Reps_Totales=('Reps', 'sum')
-            ).reset_index()
+            prog_exo = df_exo.groupby('Date').agg(Poids_Max=('Poids', 'max'), Reps_Totales=('Reps', 'sum')).reset_index()
             
             fig_prog = make_subplots(specs=[[{"secondary_y": True}]])
-            fig_prog.add_trace(go.Bar(x=prog_exo['Date'], y=prog_exo['Reps_Totales'], name="Répétitions Totales", marker_color="rgba(255, 255, 255, 0.2)"), secondary_y=False)
-            fig_prog.add_trace(go.Scatter(x=prog_exo['Date'], y=prog_exo['Poids_Max'], name="Poids Max Soulevé (kg)", mode="lines+markers", line=dict(color="#58d68d", width=3)), secondary_y=True)
             
-            fig_prog.update_layout(title=f"Évolution de la Force & Volume sur : {exo_choisi}", template="plotly_dark", height=400)
-            fig_prog.update_yaxes(title_text="Total Reps", secondary_y=False)
-            fig_prog.update_yaxes(title_text="Poids (kg)", secondary_y=True)
+            # Aire remplie sous la courbe pour le volume (Reps)
+            fig_prog.add_trace(go.Scatter(
+                x=prog_exo['Date'], y=prog_exo['Reps_Totales'], 
+                name="Répétitions Totales", 
+                fill='tozeroy', mode='lines',
+                line=dict(color='rgba(255, 255, 255, 0.2)', width=1),
+                fillcolor='rgba(255, 255, 255, 0.05)'
+            ), secondary_y=False)
+            
+            # Ligne de Poids max avec dégradé et lissage
+            fig_prog.add_trace(go.Scatter(
+                x=prog_exo['Date'], y=prog_exo['Poids_Max'], 
+                name="Poids Max Soulevé (kg)", 
+                mode="lines+markers", 
+                line=dict(color="#FF4B4B", width=3, shape='spline'),
+                marker=dict(size=8, color="#0e1117", line=dict(color="#FF4B4B", width=2))
+            ), secondary_y=True)
+            
+            fig_prog.update_layout(
+                template="plotly_dark",
+                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                height=350,
+                margin=dict(l=0, r=0, t=10, b=0),
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                hovermode="x unified"
+            )
+            fig_prog.update_yaxes(showgrid=False, secondary_y=False)
+            fig_prog.update_yaxes(showgrid=True, gridcolor='rgba(255,255,255,0.1)', secondary_y=True)
             st.plotly_chart(fig_prog, use_container_width=True)
 
         st.divider()
 
-        # --- SECTION 5 : ZONES CARDIAQUES ---
+        # --- SECTION 5 : ZONES CARDIAQUES (Donut Futuriste) ---
         st.subheader("❤️ Répartition de l'Endurance (Zones Cardiaques)")
-        # Les zones Z1 à Z5 sont les colonnes 12 à 16 dans ton Sheets
         z1 = pd.to_numeric(df_realise.iloc[:, 12], errors='coerce').sum()
         z2 = pd.to_numeric(df_realise.iloc[:, 13], errors='coerce').sum()
         z3 = pd.to_numeric(df_realise.iloc[:, 14], errors='coerce').sum()
         z4 = pd.to_numeric(df_realise.iloc[:, 15], errors='coerce').sum()
         z5 = pd.to_numeric(df_realise.iloc[:, 16], errors='coerce').sum()
         
-        total_cardio = z1 + z2 + z3 + z4 + z5
-        
-        if total_cardio > 0:
-            fig_zones = px.pie(
-                values=[z1, z2, z3, z4, z5], 
-                names=['Zone 1 (Récup)', 'Zone 2 (Endurance)', 'Zone 3 (Tempo)', 'Zone 4 (Seuil)', 'Zone 5 (VO2 Max)'],
-                color_discrete_sequence=['#5dade2', '#58d68d', '#f4d03f', '#e67e22', '#e74c3c'],
-                hole=0.4
+        if (z1 + z2 + z3 + z4 + z5) > 0:
+            # Palette de couleurs progressives du froid (Z1) au chaud (Z5)
+            colors = ['#1E90FF', '#00FA9A', '#FFD700', '#FF8C00', '#FF1493']
+            labels = ['Zone 1 (Récup)', 'Zone 2 (Endurance)', 'Zone 3 (Tempo)', 'Zone 4 (Seuil)', 'Zone 5 (VO2 Max)']
+            
+            fig_zones = go.Figure(data=[go.Pie(
+                labels=labels, values=[z1, z2, z3, z4, z5], 
+                hole=0.6, # Trou plus large pour un effet "Anneau"
+                marker=dict(colors=colors, line=dict(color='#0e1117', width=2)),
+                textinfo='percent',
+                hoverinfo='label+value+percent'
+            )])
+            
+            fig_zones.update_layout(
+                template="plotly_dark",
+                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                height=350,
+                margin=dict(l=0, r=0, t=10, b=0),
+                annotations=[dict(text='CARDIO<br>ZONES', x=0.5, y=0.5, font_size=16, showarrow=False, font_color='white')]
             )
-            fig_zones.update_layout(template="plotly_dark")
             st.plotly_chart(fig_zones, use_container_width=True)
         else:
             st.caption("Aucune donnée de fréquence cardiaque enregistrée pour le moment.")
-                    
                     
 # ---- PAGE 4 : CRÉATEUR DE PROGRAMME ----
 elif page == "Coach IA & Programme":
