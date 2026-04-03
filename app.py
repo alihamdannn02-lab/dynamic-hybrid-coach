@@ -11,6 +11,7 @@ import google.generativeai as genai
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import timedelta
+from plotly.subplots import make_subplots
 
 
 # --- CONFIGURATION DE L'IA GEMINI ---
