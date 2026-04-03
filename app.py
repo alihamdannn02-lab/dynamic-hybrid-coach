@@ -399,18 +399,6 @@ elif page == "Ma Séance du Jour":
             st.subheader(f"Détails : {type_seance}")
             st.divider()
 
-            # --- BOUTON COPIER SEMAINE DERNIÈRE ---
-            historique_seance = {}
-            if not est_une_course and not est_un_wod and not est_un_repos:
-                col_btn1, _ = st.columns([1, 3])
-                with col_btn1:
-                    if st.button("📋 Pré-remplir depuis ma dernière séance"):
-                        st.session_state["historique_preload"] = get_derniere_seance(str(type_seance))
-                if "historique_preload" in st.session_state:
-                    historique_seance = st.session_state["historique_preload"]
-                    if historique_seance:
-                        st.success(f"✅ {len(historique_seance)} exercices chargés depuis ta dernière séance !")
-
             # --- DÉTECTION DU MODE ---
             type_seance_lower = str(type_seance).lower()
             mots_cles_course = ["course", "run", "fractionné", "piste", "endurance", "z2"]
@@ -422,6 +410,18 @@ elif page == "Ma Séance du Jour":
             est_une_course = any(mot in type_seance_lower for mot in mots_cles_course)
             est_un_wod = any(mot in type_seance_lower for mot in mots_cles_wod)
             est_un_repos = any(mot in type_seance_lower for mot in mots_cles_repos)
+
+            # --- BOUTON COPIER SEMAINE DERNIÈRE ---
+            historique_seance = {}
+            if not est_une_course and not est_un_wod and not est_un_repos:
+                col_btn1, _ = st.columns([1, 3])
+                with col_btn1:
+                    if st.button("📋 Pré-remplir depuis ma dernière séance"):
+                        st.session_state["historique_preload"] = get_derniere_seance(str(type_seance))
+                if "historique_preload" in st.session_state:
+                    historique_seance = st.session_state["historique_preload"]
+                    if historique_seance:
+                        st.success(f"✅ {len(historique_seance)} exercices chargés depuis ta dernière séance !")
 
             # =========================================================
             # MODE 1 : JOUR DE REPOS (ÉCRAN ZEN)
