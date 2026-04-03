@@ -10,6 +10,7 @@ from streamlit_image_coordinates import streamlit_image_coordinates
 import google.generativeai as genai
 import plotly.express as px
 import plotly.graph_objects as go
+from datetime import timedelta
 
 
 # --- CONFIGURATION DE L'IA GEMINI ---
@@ -633,36 +634,84 @@ elif page == "Ma Séance du Jour":
         st.error(f"Erreur de connexion au programme : {e}")
         
 elif page == "Mes Stats":
-    st.header("📊 Mon Tableau de Bord")
-    st.write("Analyse de tes performances et de ta récupération en temps réel.")
-
-    import plotly.express as px
-    import plotly.graph_objects as go
-
+    st.header("📊 Intelligence de l'Entraînement & Data Science")
+    
+    # 1. CHARGEMENT ET PRÉPARATION DES DONNÉES
     df_realise = load_historique_realise()
     df_checkin = load_historique_checkin()
 
-    if df_realise.empty and df_checkin.empty:
-        st.info("Tes bases de données sont vides. Fais quelques séances pour voir la magie opérer !")
+    if df_realise.empty or df_checkin.empty:
+        st.warning("Données insuffisantes. Continue à t'entraîner pour débloquer les analyses !")
     else:
-        # --- KPIs ---
-        st.subheader("💡 Indicateurs Globaux")
-        col1, col2, col3, col4 = st.columns(4)
-        nb_seances = len(df_realise.groupby(["Date", "Type_Seance"])) if not df_realise.empty and "Date" in df_realise.columns else 0
-        rpe_moyen = round(df_realise["Session_RPE"].mean(), 1) if not df_realise.empty and "Session_RPE" in df_realise.columns else 0.0
-        try:
-            sommeil_moyen = round(pd.to_numeric(df_checkin["Heures_Sommeil"], errors="coerce").mean(), 1) if not df_checkin.empty else 0.0
-        except:
-            sommeil_moyen = 0.0
-        try:
-            vfc_moyenne = int(pd.to_numeric(df_checkin["VFC"], errors="coerce").mean()) if not df_checkin.empty else 0
-        except:
-            vfc_moyenne = 0
-        with col1: st.metric("Séances réalisées", f"{nb_seances}")
-        with col2: st.metric("RPE Moyen", f"{rpe_moyen} / 10")
-        with col3: st.metric("Sommeil Moyen", f"{sommeil_moyen} h")
-        with col4: st.metric("VFC Moyenne", f"{vfc_moyenne} ms")
+        # Nettoyage
+        df_realise['Date'] = pd.to_datetime(df_realise.iloc[:, 0])
+        df_realise['Volume'] = pd.to_numeric(df_realise.iloc[:, 5]) * pd.to_numeric(df_realise.iloc[:, 6])
+        df_checkin['Date'] = pd.to_datetime(df_checkin.iloc[:, 0])
+        
+        # --- ANALYSE 1 : ACWR (ACUTE:CHRONIC WORKLOAD RATIO) ---
+        # C'est le standard pour éviter les blessures
+        st.subheader("🛡️ Gestion du risque de blessure (ACWR)")
+        
+        # Calcul du volume quotidien
+        daily_vol = df_realise.groupby('Date')['Volume'].sum().resample('D').sum().fillna(0).reset_index()
+        
+        # Charge aiguë (moyenne 7 jours) vs Chronique (moyenne 28 jours)
+        daily_vol['Acute_Load'] = daily_vol['Volume'].rolling(window=7).mean()
+        daily_vol['Chronic_Load'] = daily_vol['Volume'].rolling(window=28).mean()
+        daily_vol['Ratio'] = daily_vol['Acute_Load'] / daily_vol['Chronic_Load']
+        
+        fig_acwr = go.Figure()
+        fig_acwr.add_trace(go.Scatter(x=daily_vol['Date'], y=daily_vol['Ratio'], name="Ratio ACWR", line=dict(color='#FF4B4B')))
+        # Zones de sécurité
+        fig_acwr.add_hrect(y0=0.8, y1=1.3, fillcolor="green", opacity=0.1, annotation_text="Zone Optimale", line_width=0)
+        fig_acwr.add_hrect(y0=1.5, y1=2.0, fillcolor="red", opacity=0.1, annotation_text="Danger (Surentraînement)", line_width=0)
+        
+        st.plotly_chart(fig_acwr, use_container_width=True)
+        st.caption("💡 Un ratio entre 0.8 et 1.3 indique une progression saine. Au-dessus de 1.5, le risque de blessure augmente drastiquement.")
 
+        col_a, col_b = st.columns(2)
+
+        with col_a:
+            # --- ANALYSE 2 : CORRÉLATION SOMMEIL → PERFORMANCE ---
+            st.subheader("😴 Sommeil vs Performance")
+            # Fusion des données de séance et de check-in
+            df_corr = pd.merge(daily_vol, df_checkin, on='Date', how='inner')
+            
+            fig_corr = px.scatter(df_corr, x="Heures_Sommeil", y="Volume", 
+                                 trendline="ols", trendline_color_override="red",
+                                 title="Impact du sommeil sur le tonnage total",
+                                 labels={"Heures_Sommeil": "Sommeil (h)", "Volume": "Volume total (kg)"})
+            st.plotly_chart(fig_corr, use_container_width=True)
+
+        with col_b:
+            # --- ANALYSE 3 : DÉTECTION DES PLATEAUX ---
+            st.subheader("📉 Détection des Plateaux")
+            # On regarde les 3 derniers entraînements pour chaque exercice
+            last_3_sessions = df_realise.groupby(df_realise.columns[4]).tail(3)
+            
+            # Simple logique de détection : si le volume baisse sur les 3 dernières fois
+            plateau_data = last_3_sessions.groupby(df_realise.columns[4])['Volume'].apply(lambda x: x.iloc[-1] <= x.mean()).reset_index()
+            plateaux = plateau_data[plateau_data['Volume'] == True][df_realise.columns[4]].tolist()
+            
+            if plateaux:
+                st.error(f"⚠️ Alerte plateau sur : {', '.join(plateaux[:3])}")
+                st.info("Conseil : Change les tempos ou prends une semaine de décharge (Deload).")
+            else:
+                st.success("✅ Progression constante sur tous tes exercices !")
+
+        # --- ANALYSE 4 : SCORE DE FORME PRÉDIT (ML SIMULÉ) ---
+        st.subheader("🔮 Score de Forme Prédit")
+        last_vfc = df_checkin.iloc[-1]['VFC']
+        last_sleep = df_checkin.iloc[-1]['Heures_Sommeil']
+        last_energy = df_checkin.iloc[-1]['Niveau_Energie']
+        
+        # Algorithme de prédiction (basé sur le cumul de fatigue et récupération)
+        readiness_score = (last_vfc * 0.4) + (last_sleep * 5) + (last_energy * 2)
+        # Normalisation sur 100
+        readiness_score = min(int(readiness_score), 100)
+        
+        st.metric("Ready to Train?", f"{readiness_score}%", delta="Prêt pour un PR" if readiness_score > 80 else "Prudence")
+        st.progress(readiness_score / 100)
         st.divider()
 
         # ============================================================
