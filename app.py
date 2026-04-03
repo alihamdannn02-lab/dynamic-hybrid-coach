@@ -8,6 +8,8 @@ import gspread
 from google.oauth2.service_account import Credentials
 from streamlit_image_coordinates import streamlit_image_coordinates
 import google.generativeai as genai
+import plotly.express as px
+import plotly.graph_objects as go
 
 
 # --- CONFIGURATION DE L'IA GEMINI ---
@@ -510,7 +512,8 @@ elif page == "Ma Séance du Jour":
                 if not est_une_course and not est_un_wod:
                     st.write("### 🏋️‍♂️ Détail des exercices")
                     st.caption("Renseigne tes performances pour chaque série.")
-                    
+
+                    df_realise = load_historique_realise()
                     for idx, row in seance_df.iterrows():
                         exo_nom = row['Exercice_WOD']
                         safe_key = f"{idx}_{str(exo_nom).replace(' ', '_')}"
@@ -532,6 +535,27 @@ elif page == "Ma Séance du Jour":
                             except: reps_defaut = 0
 
                         with st.expander(f"{exo_nom} — {nb_series} séries x {row['Reps_Cible']} reps @ {row['Poids_Cible_Kg']} kg", expanded=True):
+            
+                        # --- SECTION CONSEIL DE PROGRESSION (À COLLER ICI) ---
+                        # On cherche la dernière perf pour cet exercice spécifique
+                        dernieres_perfs = df_realise[df_realise.iloc[:, 4].str.contains(exo_nom, na=False)].tail(1)
+            
+                        if not dernieres_perfs.empty:
+                            p_prec = dernieres_perfs.iloc[0, 5]
+                            r_prec = dernieres_perfs.iloc[0, 6]
+                            rir_prec = dernieres_perfs.iloc[0, 7]
+                
+                            st.markdown(f"ℹ️ **Dernière séance :** {p_prec}kg x {r_prec} (RIR {rir_prec})")
+                
+                            # Algorithme de recommandation
+                            try:
+                                if int(rir_prec) >= 2:
+                                    st.success(f"📈 **Conseil Coach :** Tu avais de la marge ! Tente **+{round(float(p_prec)*0.05, 1)}kg** ou **+2 reps**.")
+                                elif int(rir_prec) == 0:
+                                    st.warning("⚖️ **Conseil Coach :** Tu étais à l'échec. Maintien le poids, focus technique.")
+                            except: pass
+            
+                        st.divider()
                             col_h1, col_h2, col_h3, col_h4 = st.columns([1, 2, 2, 2])
                             with col_h1: st.markdown("<div style='color: gray; font-size: 0.9em;'>Série</div>", unsafe_allow_html=True)
                             with col_h2: st.markdown("<div style='color: gray; font-size: 0.9em;'>Poids (kg)</div>", unsafe_allow_html=True)
