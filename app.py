@@ -852,6 +852,65 @@ elif page == "Coach IA & Programme":
 
         st.divider()
 
+        st.divider()
+
+        # --- DUPLICATION AUTOMATIQUE DE LA SEMAINE PRÉCÉDENTE ---
+        if type_seance and type_seance != "-- Nouvelle séance --":
+            try:
+                df_prog = load_programme()
+                # On cherche la même séance dans la semaine précédente
+                semaine_prec = semaine - 1
+                df_modele = df_prog[
+                    (df_prog["Semaine"] == semaine_prec) & 
+                    (df_prog["Type_Seance"] == type_seance)
+                ]
+                
+                if not df_modele.empty:
+                    st.info(f"📋 **{len(df_modele)} exercices** trouvés en Semaine {semaine_prec} pour {type_seance}")
+                    
+                    # Aperçu des exercices
+                    st.dataframe(
+                        df_modele[["Exercice_WOD", "Series_Cible", "Reps_Cible", "Poids_Cible_Kg"]].rename(columns={
+                            "Exercice_WOD": "Exercice",
+                            "Series_Cible": "Séries",
+                            "Reps_Cible": "Reps",
+                            "Poids_Cible_Kg": "Poids (kg)"
+                        }),
+                        use_container_width=True,
+                        hide_index=True
+                    )
+                    
+                    if st.button("⚡ Dupliquer toute cette séance dans la Semaine " + str(semaine), type="primary"):
+                        lignes = []
+                        for _, row in df_modele.iterrows():
+                            lignes.append([
+                                int(semaine),
+                                str(jour),
+                                str(type_seance),
+                                str(row["Exercice_WOD"]),
+                                int(row["Series_Cible"]),
+                                str(row["Reps_Cible"]),
+                                float(row["Poids_Cible_Kg"])
+                            ])
+                        try:
+                            client = connect_sheets()
+                            sheet = client.open("DB_Dynamic_Hybrid_Coach")
+                            worksheet = sheet.worksheet("Programme_Theorique")
+                            worksheet.append_rows(lignes)
+                            load_programme.clear()
+                            st.success(f"✅ {len(lignes)} exercices dupliqués en Semaine {semaine} !")
+                            st.balloons()
+                        except Exception as e:
+                            st.error(f"Erreur : {e}")
+                else:
+                    st.caption(f"Aucun modèle trouvé en Semaine {semaine_prec} pour {type_seance}.")
+            except Exception as e:
+                st.caption(f"Impossible de charger le modèle : {e}")
+
+        st.divider()
+
+        # --- LE CERVEAU DYNAMIQUE ---
+
         # --- LE CERVEAU DYNAMIQUE ---
         # On vérifie en temps réel si tu as tapé un mot clé Cardio/Hyrox
         type_seance_lower = str(type_seance).lower() if type_seance else ""
