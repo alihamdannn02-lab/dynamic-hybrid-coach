@@ -636,70 +636,161 @@ elif page == "Ma Séance du Jour":
 #----PAGE 3 : MES STATS----       
 
 elif page == "Mes Stats":
-    st.header("📊 Ton Bilan Simple & Efficace")
-    st.write("Pas de graphiques compliqués ici, juste l'essentiel de ta progression.")
-
-    # 1. CHARGEMENT DES DONNÉES
+    st.header("📊 Cockpit Performance & Récupération")
+    
+    # --- CHARGEMENT DES DONNÉES ---
     df_realise = load_historique_realise()
     df_checkin = load_historique_checkin()
 
     if df_realise.empty:
-        st.info("🏋️‍♂️ Va d'abord faire une séance et l'enregistrer, ton bilan s'affichera ici !")
+        st.info("Aucune donnée d'entraînement enregistrée pour le moment.")
     else:
-        # --- CALCULS SIMPLES ---
-        # Calcul du Tonnage (Poids x Reps) avec sécurité
-        df_realise['Volume'] = pd.to_numeric(df_realise.iloc[:, 5], errors='coerce').fillna(0) * pd.to_numeric(df_realise.iloc[:, 6], errors='coerce').fillna(0)
-        total_souleve = int(df_realise['Volume'].sum())
-        nb_seances = len(df_realise.iloc[:, 0].unique())
-        
-        # --- LES 3 GROS CHIFFRES (KPIs) ---
-        st.subheader("🏆 Tes Trophées")
-        col1, col2, col3 = st.columns(3)
-        col1.metric("🏋️ Total Soulevé", f"{total_souleve:,} kg".replace(',', ' '))
-        col2.metric("📅 Séances Terminées", f"{nb_seances}")
-        
-        sommeil_moyen = 0
-        if not df_checkin.empty:
-            sommeil_moyen = round(pd.to_numeric(df_checkin.iloc[:, 1], errors='coerce').mean(), 1)
-            col3.metric("😴 Sommeil Moyen", f"{sommeil_moyen} h")
-        else:
-            col3.metric("😴 Sommeil Moyen", "Pas de données")
-
-        st.divider()
-
-        # --- L'AVIS DU COACH (Messages en texte clair) ---
-        st.subheader("🗣️ Ce que dit ton Coach :")
-        
-        # Calcul de la difficulté moyenne
-        if 'Session_RPE' in df_realise.columns:
-            rpe_moyen = pd.to_numeric(df_realise['Session_RPE'], errors='coerce').mean()
-        else:
-            rpe_moyen = 7 # Valeur par défaut
-            
-        # Message sur l'effort
-        if rpe_moyen >= 8:
-            st.warning("🔥 **Attention :** Tes séances sont très intenses (RPE élevé). N'oublie pas de planifier des jours de repos complets pour éviter la blessure.")
-        elif rpe_moyen < 5:
-            st.info("🔋 **Sous le radar :** Tes entraînements semblent assez faciles. Tu as sûrement de la marge pour charger un peu plus lourd la prochaine fois !")
-        else:
-            st.success("✅ **Rythme parfait :** La difficulté de tes séances est dans la zone idéale pour progresser sans t'épuiser. Continue comme ça.")
-
-        # Message sur le sommeil
-        if sommeil_moyen > 0:
-            if sommeil_moyen < 7:
-                st.error(f"🛌 **Alerte Récupération :** Tu ne dors que {sommeil_moyen}h en moyenne. C'est actuellement ton plus gros frein pour prendre du muscle et récupérer.")
-            elif sommeil_moyen >= 8:
-                st.success(f"💪 **Récupération au top :** Avec {sommeil_moyen}h de sommeil en moyenne, ton corps est dans les meilleures conditions pour se transformer.")
-
-        st.divider()
-
-        # --- LE SEUL VISUEL UTILE : L'ÉVOLUTION ---
-        st.subheader("📈 Ton volume soulevé au fil du temps")
+        # --- PRÉPARATION DES DONNÉES (Basée sur tes indices de colonnes exacts) ---
         df_realise['Date'] = pd.to_datetime(df_realise.iloc[:, 0])
-        vol_par_jour = df_realise.groupby('Date')['Volume'].sum()
+        df_realise['Semaine'] = pd.to_numeric(df_realise.iloc[:, 1], errors='coerce')
+        df_realise['Poids'] = pd.to_numeric(df_realise.iloc[:, 5], errors='coerce').fillna(0)
+        df_realise['Reps'] = pd.to_numeric(df_realise.iloc[:, 6], errors='coerce').fillna(0)
+        df_realise['Session_RPE'] = pd.to_numeric(df_realise.iloc[:, 9], errors='coerce').fillna(0)
+        df_realise['Duree_Cardio'] = pd.to_numeric(df_realise.iloc[:, 11], errors='coerce').fillna(0)
         
-        # Un simple graphique en barres natif à Streamlit, sans Plotly complexe
-        st.bar_chart(vol_par_jour, color="#FF4B4B")
+        # Grouper par Date et Semaine pour avoir 1 ligne = 1 séance
+        seances = df_realise.groupby(['Date', 'Semaine']).agg(
+            Session_RPE=('Session_RPE', 'max'),
+            Duree_Cardio=('Duree_Cardio', 'max'),
+            # Si Duree_Cardio est 0, c'est de la muscu : on estime à 60 min par défaut pour le calcul
+            Duree_Seance=('Duree_Cardio', lambda x: 60 if x.max() == 0 else x.max())
+        ).reset_index()
+        
+        # CALCUL DE BORG (sRPE : RPE x Durée)
+        seances['Charge_Borg'] = seances['Session_RPE'] * seances['Duree_Seance']
+        
+        semaine_actuelle = int(seances['Semaine'].max())
+        seances_semaine_actuelle = seances[seances['Semaine'] == semaine_actuelle]
+
+        # --- SECTION 1 : LES VRAIS KPI ---
+        st.subheader("📌 Vue d'ensemble (Semaine actuelle)")
+        col1, col2, col3, col4 = st.columns(4)
+        
+        # 1. Nbr de séances
+        nb_seances_tot = len(seances)
+        nb_seances_sem = len(seances_semaine_actuelle)
+        col1.metric("Séances (Semaine)", f"{nb_seances_sem}", f"Total historique: {nb_seances_tot}")
+        
+        # 2. Temps passé
+        temps_total_heures = seances['Duree_Seance'].sum() / 60
+        temps_semaine_heures = seances_semaine_actuelle['Duree_Seance'].sum() / 60
+        col2.metric("Temps d'effort (Semaine)", f"{temps_semaine_heures:.1f} h", f"Total: {temps_total_heures:.1f} h")
+        
+        # 3. RPE Moyen
+        rpe_moyen_sem = seances_semaine_actuelle['Session_RPE'].mean() if not seances_semaine_actuelle.empty else 0
+        col3.metric("RPE Moyen (Semaine)", f"{rpe_moyen_sem:.1f} / 10")
+        
+        # 4. Sommeil Moyen
+        sommeil_moyen = 0
+        douleurs_recentes = "Aucune"
+        if not df_checkin.empty:
+            df_checkin['Date'] = pd.to_datetime(df_checkin.iloc[:, 0])
+            df_checkin['Sommeil'] = pd.to_numeric(df_checkin.iloc[:, 1], errors='coerce')
+            sommeil_moyen = df_checkin.tail(7)['Sommeil'].mean() # Moyenne sur 7 jours
+            douleurs_recentes = df_checkin.iloc[-1, 4] # Colonne des muscles douloureux du dernier check-in
+            col4.metric("Sommeil Moyen (7j)", f"{sommeil_moyen:.1f} h")
+        else:
+            col4.metric("Sommeil Moyen", "N/A")
+
+        st.divider()
+
+        # --- SECTION 2 : ACWR (Charge Aiguë vs Chronique avec score de Borg) ---
+        st.subheader("🛡️ Risque de Blessure & Surcharge (Méthode de Borg)")
+        
+        # Calcul de la charge par semaine
+        charge_hebdo = seances.groupby('Semaine')['Charge_Borg'].sum().reset_index()
+        
+        # Calcul ACWR (Aiguë = Semaine N, Chronique = Moyenne des Semaines N, N-1, N-2, N-3)
+        charge_hebdo['Charge_Chronique'] = charge_hebdo['Charge_Borg'].rolling(window=4, min_periods=1).mean()
+        charge_hebdo['ACWR'] = charge_hebdo['Charge_Borg'] / charge_hebdo['Charge_Chronique']
+        
+        fig_acwr = make_subplots(specs=[[{"secondary_y": True}]])
+        fig_acwr.add_trace(go.Bar(x=charge_hebdo['Semaine'], y=charge_hebdo['Charge_Borg'], name="Charge Hebdo (Borg)", marker_color="#5dade2"), secondary_y=False)
+        fig_acwr.add_trace(go.Scatter(x=charge_hebdo['Semaine'], y=charge_hebdo['ACWR'], name="Ratio ACWR", mode="lines+markers", line=dict(color="#FF4B4B", width=3)), secondary_y=True)
+        
+        # Zones de sécurité ACWR
+        fig_acwr.add_hrect(y0=0.8, y1=1.3, fillcolor="green", opacity=0.1, secondary_y=True, annotation_text="Zone Optimale")
+        fig_acwr.add_hrect(y0=1.5, y1=2.5, fillcolor="red", opacity=0.1, secondary_y=True, annotation_text="Danger (Surentraînement)")
+        
+        fig_acwr.update_layout(title="Charge Hebdomadaire (sRPE) vs Ratio de Blessure", template="plotly_dark", height=400)
+        st.plotly_chart(fig_acwr, use_container_width=True)
+
+        st.divider()
+
+        # --- SECTION 3 : CONSEILS DU COACH (Basé sur Data) ---
+        st.subheader("🗣️ Analyse Stratégique du Coach IA")
+        col_c1, col_c2 = st.columns(2)
+        
+        with col_c1:
+            ratio_actuel = charge_hebdo.iloc[-1]['ACWR'] if not charge_hebdo.empty else 1
+            if ratio_actuel > 1.5:
+                st.error("🚨 **SURENTRAÎNEMENT DÉTECTÉ :** Ton ratio ACWR a explosé. Tu augmentes ton volume trop vite. **Lève le pied cette semaine (Deload) !**")
+            elif ratio_actuel < 0.8:
+                st.warning("📉 **SOUS-ENTRAÎNEMENT :** Ta charge de travail baisse par rapport au mois dernier. Tu risques de perdre tes acquis.")
+            else:
+                st.success("✅ **PROGRESSION PARFAITE :** Ton ratio de charge est dans le 'Sweet Spot' (0.8 - 1.3). Continue cette surcharge progressive douce.")
+                
+        with col_c2:
+            st.info(f"🤕 **Douleurs récentes signalées :** {douleurs_recentes}")
+            if sommeil_moyen > 0 and sommeil_moyen < 7:
+                st.warning(f"⚠️ Ton sommeil moyen ({sommeil_moyen:.1f}h) est un frein majeur à la récupération de tes tissus musculaires.")
+
+        st.divider()
+
+        # --- SECTION 4 : SURCHARGE PROGRESSIVE (Poids & Reps par Exo) ---
+        st.subheader("📈 Surcharge Progressive par Exercice")
+        
+        # On filtre les exos (on exclut les lignes de cardio "Bilan Course" etc.)
+        liste_exos = [exo for exo in df_realise.iloc[:, 4].unique() if "Bilan" not in str(exo)]
+        
+        if liste_exos:
+            exo_choisi = st.selectbox("Sélectionne un exercice pour analyser ta progression :", liste_exos)
+            
+            df_exo = df_realise[df_realise.iloc[:, 4] == exo_choisi].copy()
+            # On cherche le Poids Max et le Volume de Reps (Somme) par séance
+            prog_exo = df_exo.groupby('Date').agg(
+                Poids_Max=('Poids', 'max'),
+                Reps_Totales=('Reps', 'sum')
+            ).reset_index()
+            
+            fig_prog = make_subplots(specs=[[{"secondary_y": True}]])
+            fig_prog.add_trace(go.Bar(x=prog_exo['Date'], y=prog_exo['Reps_Totales'], name="Répétitions Totales", marker_color="rgba(255, 255, 255, 0.2)"), secondary_y=False)
+            fig_prog.add_trace(go.Scatter(x=prog_exo['Date'], y=prog_exo['Poids_Max'], name="Poids Max Soulevé (kg)", mode="lines+markers", line=dict(color="#58d68d", width=3)), secondary_y=True)
+            
+            fig_prog.update_layout(title=f"Évolution de la Force & Volume sur : {exo_choisi}", template="plotly_dark", height=400)
+            fig_prog.update_yaxes(title_text="Total Reps", secondary_y=False)
+            fig_prog.update_yaxes(title_text="Poids (kg)", secondary_y=True)
+            st.plotly_chart(fig_prog, use_container_width=True)
+
+        st.divider()
+
+        # --- SECTION 5 : ZONES CARDIAQUES ---
+        st.subheader("❤️ Répartition de l'Endurance (Zones Cardiaques)")
+        # Les zones Z1 à Z5 sont les colonnes 12 à 16 dans ton Sheets
+        z1 = pd.to_numeric(df_realise.iloc[:, 12], errors='coerce').sum()
+        z2 = pd.to_numeric(df_realise.iloc[:, 13], errors='coerce').sum()
+        z3 = pd.to_numeric(df_realise.iloc[:, 14], errors='coerce').sum()
+        z4 = pd.to_numeric(df_realise.iloc[:, 15], errors='coerce').sum()
+        z5 = pd.to_numeric(df_realise.iloc[:, 16], errors='coerce').sum()
+        
+        total_cardio = z1 + z2 + z3 + z4 + z5
+        
+        if total_cardio > 0:
+            fig_zones = px.pie(
+                values=[z1, z2, z3, z4, z5], 
+                names=['Zone 1 (Récup)', 'Zone 2 (Endurance)', 'Zone 3 (Tempo)', 'Zone 4 (Seuil)', 'Zone 5 (VO2 Max)'],
+                color_discrete_sequence=['#5dade2', '#58d68d', '#f4d03f', '#e67e22', '#e74c3c'],
+                hole=0.4
+            )
+            fig_zones.update_layout(template="plotly_dark")
+            st.plotly_chart(fig_zones, use_container_width=True)
+        else:
+            st.caption("Aucune donnée de fréquence cardiaque enregistrée pour le moment.")
                     
                     
 # ---- PAGE 4 : CRÉATEUR DE PROGRAMME ----
