@@ -858,40 +858,50 @@ elif page == "Coach IA & Programme":
         if type_seance and type_seance != "-- Nouvelle séance --":
             try:
                 df_prog = load_programme()
-                # On cherche la même séance dans la semaine précédente
                 semaine_prec = semaine - 1
                 df_modele = df_prog[
                     (df_prog["Semaine"] == semaine_prec) & 
                     (df_prog["Type_Seance"] == type_seance)
-                ]
+                ].copy()
                 
                 if not df_modele.empty:
                     st.info(f"📋 **{len(df_modele)} exercices** trouvés en Semaine {semaine_prec} pour {type_seance}")
                     
-                    # Aperçu des exercices
-                    st.dataframe(
-                        df_modele[["Exercice_WOD", "Series_Cible", "Reps_Cible", "Poids_Cible_Kg"]].rename(columns={
-                            "Exercice_WOD": "Exercice",
-                            "Series_Cible": "Séries",
-                            "Reps_Cible": "Reps",
-                            "Poids_Cible_Kg": "Poids (kg)"
-                        }),
+                    # --- TABLEAU ÉDITABLE ---
+                    st.caption("✏️ Modifie directement le tableau avant de dupliquer")
+                    df_editable = df_modele[["Exercice_WOD", "Series_Cible", "Reps_Cible", "Poids_Cible_Kg"]].rename(columns={
+                        "Exercice_WOD": "Exercice",
+                        "Series_Cible": "Séries",
+                        "Reps_Cible": "Reps",
+                        "Poids_Cible_Kg": "Poids (kg)"
+                    }).reset_index(drop=True)
+                    
+                    df_modifie = st.data_editor(
+                        df_editable,
                         use_container_width=True,
-                        hide_index=True
+                        hide_index=True,
+                        num_rows="dynamic",  # permet d'ajouter/supprimer des lignes
+                        column_config={
+                            "Exercice": st.column_config.TextColumn("Exercice", width="large"),
+                            "Séries": st.column_config.NumberColumn("Séries", min_value=1, max_value=10, step=1),
+                            "Reps": st.column_config.TextColumn("Reps"),
+                            "Poids (kg)": st.column_config.NumberColumn("Poids (kg)", min_value=0.0, step=0.5),
+                        }
                     )
                     
-                    if st.button("⚡ Dupliquer toute cette séance dans la Semaine " + str(semaine), type="primary"):
+                    if st.button("⚡ Dupliquer cette séance modifiée dans la Semaine " + str(semaine), type="primary"):
                         lignes = []
-                        for _, row in df_modele.iterrows():
-                            lignes.append([
-                                int(semaine),
-                                str(jour),
-                                str(type_seance),
-                                str(row["Exercice_WOD"]),
-                                int(row["Series_Cible"]),
-                                str(row["Reps_Cible"]),
-                                float(row["Poids_Cible_Kg"])
-                            ])
+                        for _, row in df_modifie.iterrows():
+                            if pd.notna(row["Exercice"]) and str(row["Exercice"]).strip() != "":
+                                lignes.append([
+                                    int(semaine),
+                                    str(jour),
+                                    str(type_seance),
+                                    str(row["Exercice"]),
+                                    int(row["Séries"]) if pd.notna(row["Séries"]) else 1,
+                                    str(row["Reps"]) if pd.notna(row["Reps"]) else "10",
+                                    float(row["Poids (kg)"]) if pd.notna(row["Poids (kg)"]) else 0.0
+                                ])
                         try:
                             client = connect_sheets()
                             sheet = client.open("DB_Dynamic_Hybrid_Coach")
