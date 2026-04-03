@@ -201,7 +201,28 @@ def sauvegarder_seance_ia_programme(titre, df_exos, semaine, jour):
         return True
     except Exception as e:
         return False
-        
+
+def get_derniere_seance(type_seance_nom):
+    try:
+        df = load_historique_realise()
+        if df.empty:
+            return {}
+        df_seance = df[df["Type_Seance"] == type_seance_nom].copy()
+        if df_seance.empty:
+            return {}
+        derniere_date = df_seance["Date"].max()
+        df_last = df_seance[df_seance["Date"] == derniere_date]
+        resultats = {}
+        for _, row in df_last.iterrows():
+            nom_base = str(row["Exercice"]).split(" (Série")[0]
+            if nom_base not in resultats:
+                resultats[nom_base] = {
+                    "poids": float(row["Poids_Reel_Kg"]) if row["Poids_Reel_Kg"] else 0.0,
+                    "reps": int(row["Reps_Reelles"]) if row["Reps_Reelles"] else 0
+                }
+        return resultats
+    except:
+        return {}        
         
 # ---- HEADER ----
 st.title("Dynamic Hybrid Coach")
@@ -378,6 +399,18 @@ elif page == "Ma Séance du Jour":
             st.subheader(f"Détails : {type_seance}")
             st.divider()
 
+            # --- BOUTON COPIER SEMAINE DERNIÈRE ---
+            historique_seance = {}
+            if not est_une_course and not est_un_wod and not est_un_repos:
+                col_btn1, _ = st.columns([1, 3])
+                with col_btn1:
+                    if st.button("📋 Pré-remplir depuis ma dernière séance"):
+                        st.session_state["historique_preload"] = get_derniere_seance(str(type_seance))
+                if "historique_preload" in st.session_state:
+                    historique_seance = st.session_state["historique_preload"]
+                    if historique_seance:
+                        st.success(f"✅ {len(historique_seance)} exercices chargés depuis ta dernière séance !")
+
             # --- DÉTECTION DU MODE ---
             type_seance_lower = str(type_seance).lower()
             mots_cles_course = ["course", "run", "fractionné", "piste", "endurance", "z2"]
@@ -488,11 +521,15 @@ elif page == "Ma Séance du Jour":
                         except:
                             nb_series = 1
                             
-                        try: poids_defaut = float(row['Poids_Cible_Kg'])
-                        except: poids_defaut = 0.0
-                        
-                        try: reps_defaut = int(''.join(filter(str.isdigit, str(row['Reps_Cible']))))
-                        except: reps_defaut = 0
+                        nom_exo_base = str(row['Exercice_WOD'])
+                        if historique_seance and nom_exo_base in historique_seance:
+                            poids_defaut = historique_seance[nom_exo_base]["poids"]
+                            reps_defaut = historique_seance[nom_exo_base]["reps"]
+                        else:
+                            try: poids_defaut = float(row['Poids_Cible_Kg'])
+                            except: poids_defaut = 0.0
+                            try: reps_defaut = int(''.join(filter(str.isdigit, str(row['Reps_Cible']))))
+                            except: reps_defaut = 0
 
                         with st.expander(f"{exo_nom} — {nb_series} séries x {row['Reps_Cible']} reps @ {row['Poids_Cible_Kg']} kg", expanded=True):
                             col_h1, col_h2, col_h3, col_h4 = st.columns([1, 2, 2, 2])
@@ -513,6 +550,7 @@ elif page == "Ma Séance du Jour":
                                     st.selectbox("RIR", [0, 1, 2, 3, 4], index=2, key=f"rir_{safe_key}_s{serie}", label_visibility="collapsed")
 
                 st.divider()
+                duree_muscu = st.number_input("⏱️ Durée de la séance (min)", min_value=0, step=1, value=60)
                 session_rpe = st.slider("Note globale de la séance (RPE)", 1, 10, 7)
                 st.caption("🔥 1-2: Très facile | 3-4: Facile | 5-6: Modéré | 7-8: Difficile | 9: Très difficile | 10: Effort maximal")
 
@@ -555,7 +593,7 @@ elif page == "Ma Séance du Jour":
                                 ligne_exo = [
                                     date_du_jour, int(semaine), vrai_jour_actuel, str(type_seance), str(nom_exo_complet), 
                                     float(poids), int(reps), int(rir), int(rpe_serie), int(session_rpe),
-                                    0.0, 0, 0, 0, 0, 0, 0 
+                                    0.0, int(duree_muscu), 0, 0, 0, 0, 0 
                                 ]
                                 lignes_a_sauvegarder.append(ligne_exo)
                     
