@@ -633,6 +633,8 @@ elif page == "Ma Séance du Jour":
     except Exception as e:
         st.error(f"Erreur de connexion au programme : {e}")
         
+#----PAGE 3 : MES STATS----       
+
 elif page == "Mes Stats":
     st.header("📊 Intelligence de l'Entraînement & Data Science")
     
@@ -640,243 +642,168 @@ elif page == "Mes Stats":
     df_realise = load_historique_realise()
     df_checkin = load_historique_checkin()
 
-    if df_realise.empty or df_checkin.empty:
-        st.warning("Données insuffisantes. Continue à t'entraîner pour débloquer les analyses !")
+    if df_realise.empty:
+        st.warning("Aucune donnée d'entraînement trouvée. Enregistre ta première séance !")
     else:
-        # Nettoyage
+        # --- NETTOYAGE ROBUSTE DES DONNÉES ---
+        # On s'assure que la date est au bon format
         df_realise['Date'] = pd.to_datetime(df_realise.iloc[:, 0])
-        df_realise['Volume'] = pd.to_numeric(df_realise.iloc[:, 5]) * pd.to_numeric(df_realise.iloc[:, 6])
-        df_checkin['Date'] = pd.to_datetime(df_checkin.iloc[:, 0])
         
-        # --- ANALYSE 1 : ACWR (ACUTE:CHRONIC WORKLOAD RATIO) ---
-        # C'est le standard pour éviter les blessures
-        st.subheader("🛡️ Gestion du risque de blessure (ACWR)")
-        
-        # Calcul du volume quotidien
-        daily_vol = df_realise.groupby('Date')['Volume'].sum().resample('D').sum().fillna(0).reset_index()
-        
-        # Charge aiguë (moyenne 7 jours) vs Chronique (moyenne 28 jours)
-        daily_vol['Acute_Load'] = daily_vol['Volume'].rolling(window=7).mean()
-        daily_vol['Chronic_Load'] = daily_vol['Volume'].rolling(window=28).mean()
-        daily_vol['Ratio'] = daily_vol['Acute_Load'] / daily_vol['Chronic_Load']
-        
-        fig_acwr = go.Figure()
-        fig_acwr.add_trace(go.Scatter(x=daily_vol['Date'], y=daily_vol['Ratio'], name="Ratio ACWR", line=dict(color='#FF4B4B')))
-        # Zones de sécurité
-        fig_acwr.add_hrect(y0=0.8, y1=1.3, fillcolor="green", opacity=0.1, annotation_text="Zone Optimale", line_width=0)
-        fig_acwr.add_hrect(y0=1.5, y1=2.0, fillcolor="red", opacity=0.1, annotation_text="Danger (Surentraînement)", line_width=0)
-        
-        st.plotly_chart(fig_acwr, use_container_width=True)
-        st.caption("💡 Un ratio entre 0.8 et 1.3 indique une progression saine. Au-dessus de 1.5, le risque de blessure augmente drastiquement.")
+        # On essaie de calculer le Volume (Tonnage) en fonction de l'index des colonnes (Poids = col 5, Reps = col 6)
+        try:
+            df_realise['Volume_Kg'] = pd.to_numeric(df_realise.iloc[:, 5], errors='coerce').fillna(0) * pd.to_numeric(df_realise.iloc[:, 6], errors='coerce').fillna(0)
+        except Exception as e:
+            df_realise['Volume_Kg'] = 0
 
+        # On s'assure que RPE et Durée sont numériques
+        if 'Session_RPE' in df_realise.columns:
+            df_realise['Session_RPE'] = pd.to_numeric(df_realise['Session_RPE'], errors='coerce').fillna(0)
+        else:
+             df_realise['Session_RPE'] = 0
+             
+        # Recherche robuste de la colonne de durée (pour le cardio ou la muscu)
+        duree_col = next((col for col in df_realise.columns if 'duree' in col.lower() or 'durée' in col.lower()), None)
+        if duree_col:
+             df_realise['Duree_Min'] = pd.to_numeric(df_realise[duree_col], errors='coerce').fillna(0)
+        else:
+             df_realise['Duree_Min'] = 60 # Valeur par défaut si non trouvée
+
+        # --- CALCUL DE LA CHARGE D'ENTRAÎNEMENT (TRAINING LOAD) ---
+        # Formule de Foster : Charge = RPE * Durée (en minutes)
+        # On groupe par date pour avoir la charge totale de la journée
+        daily_stats = df_realise.groupby('Date').agg(
+            Charge_Exertion=('Session_RPE', 'max'), # On prend le RPE global de la séance
+            Duree_Totale=('Duree_Min', 'max'),      # On prend la durée max déclarée ce jour-là
+            Volume_Total=('Volume_Kg', 'sum')       # Somme du tonnage
+        ).reset_index()
+        
+        daily_stats['Training_Load'] = daily_stats['Charge_Exertion'] * daily_stats['Duree_Totale']
+
+        # ============================================================
+        # CHART 1 : CHARGE D'ENTRAÎNEMENT & INTENSITÉ
+        # ============================================================
+        st.subheader("⚡ Charge d'Entraînement (sRPE * Durée)")
+        st.caption("Mesure l'impact global de tes séances sur ton organisme.")
+        
+        fig_load = go.Figure()
+        fig_load.add_trace(go.Bar(
+            x=daily_stats['Date'],
+            y=daily_stats['Training_Load'],
+            name="Charge Quotidienne",
+            marker_color="#5dade2"
+        ))
+        
+        # Ajout d'une moyenne mobile sur 7 jours si on a assez de points
+        if len(daily_stats) > 0:
+            daily_stats['Load_7d_Avg'] = daily_stats['Training_Load'].rolling(window=7, min_periods=1).mean()
+            fig_load.add_trace(go.Scatter(
+                x=daily_stats['Date'],
+                y=daily_stats['Load_7d_Avg'],
+                name="Tendance (7j)",
+                line=dict(color="#FF4B4B", width=3)
+            ))
+
+        fig_load.update_layout(
+            template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+            height=350, margin=dict(l=20, r=20, t=30, b=20)
+        )
+        st.plotly_chart(fig_load, use_container_width=True)
+
+        st.divider()
+
+        # ============================================================
+        # CHART 2 : ACWR (ACUTE:CHRONIC WORKLOAD RATIO)
+        # ============================================================
+        st.subheader("🛡️ Gestion du Risque (Ratio ACWR)")
+        
+        # On calcule l'ACWR basé sur la Charge d'Entraînement (Training Load)
+        # Il faut recréer un index quotidien continu pour que le calcul sur 7/28 jours soit juste
+        if len(daily_stats) > 1:
+            try:
+                date_range = pd.date_range(start=daily_stats['Date'].min(), end=daily_stats['Date'].max())
+                daily_load_continuous = daily_stats.set_index('Date').reindex(date_range).fillna({'Training_Load': 0}).reset_index()
+                daily_load_continuous.rename(columns={'index': 'Date'}, inplace=True)
+                
+                # Charge aiguë (fatigue récente - moy 7 jours)
+                daily_load_continuous['Acute_Load'] = daily_load_continuous['Training_Load'].rolling(window=7, min_periods=1).sum()
+                # Charge chronique (fitness de base - moy 28 jours)
+                daily_load_continuous['Chronic_Load'] = daily_load_continuous['Training_Load'].rolling(window=28, min_periods=1).sum() / 4
+                
+                # Éviter la division par zéro
+                daily_load_continuous['Chronic_Load'] = daily_load_continuous['Chronic_Load'].replace(0, 1)
+                daily_load_continuous['ACWR'] = daily_load_continuous['Acute_Load'] / daily_load_continuous['Chronic_Load']
+                
+                fig_acwr = go.Figure()
+                fig_acwr.add_trace(go.Scatter(x=daily_load_continuous['Date'], y=daily_load_continuous['ACWR'], name="Ratio ACWR", line=dict(color='white', width=2)))
+                
+                # Zones de sécurité (Sweet Spot vs Danger)
+                fig_acwr.add_hrect(y0=0.8, y1=1.3, fillcolor="green", opacity=0.2, annotation_text="Zone Optimale (Sweet Spot)", line_width=0)
+                fig_acwr.add_hrect(y0=1.5, y1=3.0, fillcolor="red", opacity=0.2, annotation_text="Zone de Danger", line_width=0)
+                
+                fig_acwr.update_layout(
+                    template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                    height=350, margin=dict(l=20, r=20, t=30, b=20),
+                    yaxis=dict(range=[0, min(daily_load_continuous['ACWR'].max() + 0.5, 3)]) # Limiter l'axe Y
+                )
+                st.plotly_chart(fig_acwr, use_container_width=True)
+                st.caption("💡 Ratio < 0.8 : Désentraînement. 0.8 - 1.3 : Progression optimale. > 1.5 : Risque de blessure accru.")
+            except Exception as e:
+                st.info("Le graphique ACWR a besoin de quelques jours d'historique supplémentaires pour se calibrer.")
+        else:
+            st.info("Enregistre au moins deux séances à des dates différentes pour voir ton évolution ACWR.")
+
+        st.divider()
+
+        # ============================================================
+        # SECTIONS AVANCÉES (Nécessitent Check-ins et + de données)
+        # ============================================================
         col_a, col_b = st.columns(2)
-
+        
         with col_a:
-            # --- ANALYSE 2 : CORRÉLATION SOMMEIL → PERFORMANCE ---
-            st.subheader("😴 Sommeil vs Performance")
-            # Fusion des données de séance et de check-in
-            df_corr = pd.merge(daily_vol, df_checkin, on='Date', how='inner')
-            
-            fig_corr = px.scatter(df_corr, x="Heures_Sommeil", y="Volume", 
-                                 trendline="ols", trendline_color_override="red",
-                                 title="Impact du sommeil sur le tonnage total",
-                                 labels={"Heures_Sommeil": "Sommeil (h)", "Volume": "Volume total (kg)"})
-            st.plotly_chart(fig_corr, use_container_width=True)
+            st.subheader("🔮 Score de Forme Prédit")
+            if not df_checkin.empty:
+                last_check = df_checkin.iloc[-1]
+                
+                try:
+                    # Rendre la récupération robuste aux types de données
+                    vfc = float(last_check['VFC']) if 'VFC' in df_checkin.columns else 50
+                    sommeil = float(last_check['Heures_Sommeil']) if 'Heures_Sommeil' in df_checkin.columns else 7
+                    energie = float(last_check['Niveau_Energie']) if 'Niveau_Energie' in df_checkin.columns else 5
+                    
+                    # Formule simplifiée de Readiness
+                    readiness_score = (vfc * 0.4) + (sommeil * 5) + (energie * 2)
+                    readiness_score = min(max(int(readiness_score), 0), 100) # Assurer entre 0 et 100
+                    
+                    if readiness_score > 80: delta_msg = "🟢 Prêt à performer"
+                    elif readiness_score > 50: delta_msg = "🟡 Entraînement normal"
+                    else: delta_msg = "🔴 Privilégier la récupération"
+                        
+                    st.metric("Ready to Train?", f"{readiness_score}/100", delta=delta_msg, delta_color="off")
+                    st.progress(readiness_score / 100)
+                except Exception as e:
+                     st.caption("Format de données Check-in non reconnu pour la prédiction.")
+            else:
+                st.info("Fais un Check-in matinal pour obtenir ton score de forme.")
 
         with col_b:
-            # --- ANALYSE 3 : DÉTECTION DES PLATEAUX ---
-            st.subheader("📉 Détection des Plateaux")
-            # On regarde les 3 derniers entraînements pour chaque exercice
-            last_3_sessions = df_realise.groupby(df_realise.columns[4]).tail(3)
-            
-            # Simple logique de détection : si le volume baisse sur les 3 dernières fois
-            plateau_data = last_3_sessions.groupby(df_realise.columns[4])['Volume'].apply(lambda x: x.iloc[-1] <= x.mean()).reset_index()
-            plateaux = plateau_data[plateau_data['Volume'] == True][df_realise.columns[4]].tolist()
-            
-            if plateaux:
-                st.error(f"⚠️ Alerte plateau sur : {', '.join(plateaux[:3])}")
-                st.info("Conseil : Change les tempos ou prends une semaine de décharge (Deload).")
+            st.subheader("😴 Sommeil vs Performance")
+            if not df_checkin.empty and len(daily_stats) > 2:
+                try:
+                    df_corr = pd.merge(daily_stats, df_checkin, on='Date', how='inner')
+                    if len(df_corr) > 2:
+                        # Assurons-nous que les colonnes existent
+                        sommeil_col = 'Heures_Sommeil' if 'Heures_Sommeil' in df_corr.columns else df_corr.columns[1] # Devine la colonne
+                        fig_corr = px.scatter(df_corr, x=sommeil_col, y="Training_Load", 
+                                             trendline="ols", trendline_color_override="#FF4B4B",
+                                             labels={sommeil_col: "Sommeil (h)", "Training_Load": "Charge d'Entraînement"})
+                        fig_corr.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", margin=dict(l=10, r=10, t=10, b=10))
+                        st.plotly_chart(fig_corr, use_container_width=True)
+                    else:
+                        st.caption("Plus de check-ins nécessaires pour analyser la corrélation.")
+                except:
+                     st.caption("Impossible de croiser les données de sommeil et d'entraînement pour le moment.")
             else:
-                st.success("✅ Progression constante sur tous tes exercices !")
-
-        # --- ANALYSE 4 : SCORE DE FORME PRÉDIT (ML SIMULÉ) ---
-        st.subheader("🔮 Score de Forme Prédit")
-        last_vfc = df_checkin.iloc[-1]['VFC']
-        last_sleep = df_checkin.iloc[-1]['Heures_Sommeil']
-        last_energy = df_checkin.iloc[-1]['Niveau_Energie']
-        
-        # Algorithme de prédiction (basé sur le cumul de fatigue et récupération)
-        readiness_score = (last_vfc * 0.4) + (last_sleep * 5) + (last_energy * 2)
-        # Normalisation sur 100
-        readiness_score = min(int(readiness_score), 100)
-        
-        st.metric("Ready to Train?", f"{readiness_score}%", delta="Prêt pour un PR" if readiness_score > 80 else "Prudence")
-        st.progress(readiness_score / 100)
-        st.divider()
-
-        # ============================================================
-        # CHART 1 : RPE HEATMAP
-        # ============================================================
-        st.subheader("🔥 Heatmap d'Intensité (RPE par Semaine & Jour)")
-        if not df_realise.empty and "Semaine" in df_realise.columns and "Jour" in df_realise.columns and "Session_RPE" in df_realise.columns:
-            ordre_jours = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
-            df_heatmap = df_realise.groupby(["Semaine", "Jour"])["Session_RPE"].mean().reset_index()
-            df_pivot = df_heatmap.pivot(index="Jour", columns="Semaine", values="Session_RPE")
-            # Réordonner les jours
-            df_pivot = df_pivot.reindex([j for j in ordre_jours if j in df_pivot.index])
-            fig_heatmap = go.Figure(data=go.Heatmap(
-                z=df_pivot.values,
-                x=[f"S{s}" for s in df_pivot.columns],
-                y=df_pivot.index.tolist(),
-                colorscale="RdYlGn_r",
-                zmin=1, zmax=10,
-                text=[[f"{v:.1f}" if not np.isnan(v) else "" for v in row] for row in df_pivot.values],
-                texttemplate="%{text}",
-                showscale=True,
-                colorbar=dict(title="RPE")
-            ))
-            fig_heatmap.update_layout(
-                template="plotly_dark",
-                paper_bgcolor="rgba(0,0,0,0)",
-                plot_bgcolor="rgba(0,0,0,0)",
-                height=350,
-                margin=dict(l=20, r=20, t=20, b=20),
-                xaxis_title="Semaine",
-                yaxis_title=""
-            )
-            st.plotly_chart(fig_heatmap, use_container_width=True)
-        else:
-            st.caption("Pas encore assez de données.")
-
-        st.divider()
-
-        # ============================================================
-        # CHART 2 : RADAR — BALANCE MUSCULAIRE
-        # ============================================================
-        st.subheader("🕸️ Radar — Balance Musculaire")
-        if not df_realise.empty and "Type_Seance" in df_realise.columns:
-            groupes = {
-            "Push (Haut)": ["upper_body_1", "upper_body_2", "upper_body", "upper"],
-            "Pull (Dos)": ["pull", "dos", "back", "calisthenics_grip", "calisthenics"],
-            "Legs": ["lower_body", "lower", "leg"],
-            "Cardio": ["endurance", "hybrid_conditioning", "course", "run", "hyrox", "wod", "z2"],
-            "Core": ["core", "abdo", "gainage"],
-            "Récupération": ["repos", "rest", "recovery"]
-            }
-            scores = {}
-            for groupe, mots in groupes.items():
-                mask = df_realise["Type_Seance"].str.lower().apply(
-                    lambda x: any(m in x for m in mots)
-                )
-                scores[groupe] = int(mask.sum())
-
-            categories = list(scores.keys())
-            values = list(scores.values())
-            values_closed = values + [values[0]]
-            categories_closed = categories + [categories[0]]
-
-            fig_radar = go.Figure()
-            fig_radar.add_trace(go.Scatterpolar(
-                r=values_closed,
-                theta=categories_closed,
-                fill='toself',
-                fillcolor='rgba(255, 75, 75, 0.2)',
-                line=dict(color='#FF4B4B', width=2),
-                name="Séances"
-            ))
-            fig_radar.update_layout(
-                template="plotly_dark",
-                paper_bgcolor="rgba(0,0,0,0)",
-                plot_bgcolor="rgba(0,0,0,0)",
-                polar=dict(
-                    bgcolor="rgba(0,0,0,0)",
-                    radialaxis=dict(visible=True, color="gray")
-                ),
-                height=400,
-                margin=dict(l=40, r=40, t=40, b=40),
-                showlegend=False
-            )
-            st.plotly_chart(fig_radar, use_container_width=True)
-        else:
-            st.caption("Pas encore assez de données.")
-
-        st.divider()
-
-        # ============================================================
-        # CHART 3 : DONUT — ZONES CARDIAQUES
-        # ============================================================
-        st.subheader("❤️ Distribution des Zones Cardiaques")
-        colonnes_zones = ["Z1", "Z2", "Z3", "Z4", "Z5"]
-        if not df_realise.empty and all(c in df_realise.columns for c in colonnes_zones):
-            totaux_zones = df_realise[colonnes_zones].sum()
-            totaux_zones = totaux_zones[totaux_zones > 0]
-            if not totaux_zones.empty:
-                couleurs_zones = ["#5dade2", "#58d68d", "#f4d03f", "#e67e22", "#e74c3c"]
-                fig_donut = go.Figure(data=[go.Pie(
-                    labels=totaux_zones.index.tolist(),
-                    values=totaux_zones.values.tolist(),
-                    hole=0.55,
-                    marker=dict(colors=couleurs_zones[:len(totaux_zones)]),
-                    textinfo='label+percent',
-                    textfont=dict(size=13)
-                )])
-                fig_donut.update_layout(
-                    template="plotly_dark",
-                    paper_bgcolor="rgba(0,0,0,0)",
-                    height=380,
-                    margin=dict(l=20, r=20, t=20, b=20),
-                    annotations=[dict(text="Zones<br>Cardio", x=0.5, y=0.5, font_size=14, showarrow=False, font_color="white")]
-                )
-                st.plotly_chart(fig_donut, use_container_width=True)
-            else:
-                st.caption("Aucune donnée de zone cardiaque enregistrée.")
-        else:
-            st.caption("Colonnes Z1-Z5 non trouvées dans les données.")
-
-        st.divider()
-
-        # ============================================================
-        # CHART 4 : VOLUME SOULEVÉ (BAR + LINE COMBO)
-        # ============================================================
-        st.subheader("📈 Volume Soulevé par Séance")
-        if not df_realise.empty and all(c in df_realise.columns for c in ["Date", "Poids_Reel_Kg", "Reps_Reelles"]):
-            try:
-                df_vol = df_realise.copy()
-                df_vol["Volume"] = df_vol["Poids_Reel_Kg"] * df_vol["Reps_Reelles"]
-                df_vol["Date"] = pd.to_datetime(df_vol["Date"]).dt.date
-                df_vol_groupe = df_vol.groupby("Date")["Volume"].sum().reset_index()
-                df_vol_groupe["Moyenne_Mobile"] = df_vol_groupe["Volume"].rolling(window=3, min_periods=1).mean()
-
-                fig_volume = go.Figure()
-                fig_volume.add_trace(go.Bar(
-                    x=df_vol_groupe["Date"],
-                    y=df_vol_groupe["Volume"],
-                    name="Volume (kg)",
-                    marker_color="rgba(255, 75, 75, 0.6)"
-                ))
-                fig_volume.add_trace(go.Scatter(
-                    x=df_vol_groupe["Date"],
-                    y=df_vol_groupe["Moyenne_Mobile"],
-                    name="Tendance (moy. 3j)",
-                    line=dict(color="#FF8F8F", width=2, dash="dot")
-                ))
-                fig_volume.update_layout(
-                    template="plotly_dark",
-                    paper_bgcolor="rgba(0,0,0,0)",
-                    plot_bgcolor="rgba(0,0,0,0)",
-                    height=380,
-                    margin=dict(l=20, r=20, t=20, b=20),
-                    xaxis_title="Date",
-                    yaxis_title="Volume total (kg)",
-                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-                )
-                st.plotly_chart(fig_volume, use_container_width=True)
-            except Exception as e:
-                st.caption(f"Erreur calcul volume : {e}")
-        else:
-            st.caption("Colonnes de volume non trouvées. Vérifie les noms : Poids_Reel, Reps_Reelles, Series_Reelles.")
-    
-    
+                st.info("Enregistre plus d'entraînements et de check-ins pour débloquer cette analyse.")
                     
                     
 # ---- PAGE 4 : CRÉATEUR DE PROGRAMME ----
