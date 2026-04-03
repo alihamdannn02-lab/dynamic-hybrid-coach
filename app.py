@@ -867,20 +867,24 @@ elif page == "Coach IA & Programme":
                 if not df_modele.empty:
                     st.info(f"📋 **{len(df_modele)} exercices** trouvés en Semaine {semaine_prec} pour {type_seance}")
                     
-                    # --- TABLEAU ÉDITABLE ---
-                    st.caption("✏️ Modifie directement le tableau avant de dupliquer")
+                    # --- PRÉPARATION DU TABLEAU ÉDITABLE ---
                     df_editable = df_modele[["Exercice_WOD", "Series_Cible", "Reps_Cible", "Poids_Cible_Kg"]].rename(columns={
                         "Exercice_WOD": "Exercice",
                         "Series_Cible": "Séries",
                         "Reps_Cible": "Reps",
                         "Poids_Cible_Kg": "Poids (kg)"
                     }).reset_index(drop=True)
+
+                    # --- LA LIGNE MAGIQUE POUR FIXER L'ERREUR ---
+                    # On force 'Reps' en texte pour que Streamlit accepte le TextColumn
+                    df_editable["Reps"] = df_editable["Reps"].astype(str)
                     
+                    st.caption("✏️ Modifie directement le tableau avant de dupliquer")
                     df_modifie = st.data_editor(
                         df_editable,
                         use_container_width=True,
                         hide_index=True,
-                        num_rows="dynamic",  # permet d'ajouter/supprimer des lignes
+                        num_rows="dynamic",
                         column_config={
                             "Exercice": st.column_config.TextColumn("Exercice", width="large"),
                             "Séries": st.column_config.NumberColumn("Séries", min_value=1, max_value=10, step=1),
@@ -892,6 +896,7 @@ elif page == "Coach IA & Programme":
                     if st.button("⚡ Dupliquer cette séance modifiée dans la Semaine " + str(semaine), type="primary"):
                         lignes = []
                         for _, row in df_modifie.iterrows():
+                            # On vérifie que la ligne n'est pas vide
                             if pd.notna(row["Exercice"]) and str(row["Exercice"]).strip() != "":
                                 lignes.append([
                                     int(semaine),
@@ -899,19 +904,21 @@ elif page == "Coach IA & Programme":
                                     str(type_seance),
                                     str(row["Exercice"]),
                                     int(row["Séries"]) if pd.notna(row["Séries"]) else 1,
-                                    str(row["Reps"]) if pd.notna(row["Reps"]) else "10",
+                                    str(row["Reps"]),
                                     float(row["Poids (kg)"]) if pd.notna(row["Poids (kg)"]) else 0.0
                                 ])
-                        try:
-                            client = connect_sheets()
-                            sheet = client.open("DB_Dynamic_Hybrid_Coach")
-                            worksheet = sheet.worksheet("Programme_Theorique")
-                            worksheet.append_rows(lignes)
-                            load_programme.clear()
-                            st.success(f"✅ {len(lignes)} exercices dupliqués en Semaine {semaine} !")
-                            st.balloons()
-                        except Exception as e:
-                            st.error(f"Erreur : {e}")
+                        
+                        if lignes:
+                            try:
+                                client = connect_sheets()
+                                sheet = client.open("DB_Dynamic_Hybrid_Coach")
+                                worksheet = sheet.worksheet("Programme_Theorique")
+                                worksheet.append_rows(lignes)
+                                load_programme.clear() # On vide le cache pour voir les changements
+                                st.success(f"✅ {len(lignes)} exercices dupliqués en Semaine {semaine} !")
+                                st.balloons()
+                            except Exception as e:
+                                st.error(f"Erreur lors de l'écriture : {e}")
                 else:
                     st.caption(f"Aucun modèle trouvé en Semaine {semaine_prec} pour {type_seance}.")
             except Exception as e:
