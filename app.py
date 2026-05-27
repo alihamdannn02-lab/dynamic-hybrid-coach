@@ -141,7 +141,7 @@ def delete_last_session():
         total_rows = len(all_values)
         start_row = total_rows - count + 1
         
-        # Suppression dans Google Sheets
+        # Suppression dans Google Sheet
         worksheet.delete_rows(start_row, total_rows)
         return True, f"La séance du {last_date} ({count} lignes) a été annulée."
     except Exception as e:
@@ -261,7 +261,7 @@ if st.sidebar.button("🗑️ Annuler ma dernière séance"):
     else:
         st.sidebar.error(message)
         
-# ---- PAGE 1 : CHECK-IN MATINAL ----
+# ---- PAGE 1 : CHECK-IN MATIN ----
 if page == " Check-in Matinal":
     st.header(" Check-in Matinal")
     st.write("Comment tu te sens ce matin ?")
