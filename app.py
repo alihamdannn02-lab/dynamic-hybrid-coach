@@ -714,8 +714,6 @@ elif page == "Ma Séance du Jour":
         
 #----PAGE 3 : MES STATS----      
 
-
-    
 elif page == "Mes Insights (Data)":
     st.header("📊 Cockpit Performance & Readiness")
     
@@ -845,22 +843,20 @@ elif page == "Mes Insights (Data)":
         # On trie les séances chronologiquement
         seances = seances.sort_values(by='Date').reset_index(drop=True)
         
+        # 1. Calcul de la charge (TSS proxy) - TOUJOURS EFFECTUÉ, même avec 1 seule séance !
+        if not seances.empty:
+            seances['TSS'] = seances['Charge_Borg'] * 1.5 
+        
         if len(seances) > 3: # Il faut un minimum de données pour lisser la courbe
-            # 1. Calcul des métriques de charge (TSS proxy)
-            seances['TSS'] = seances['Charge_Borg'] * 1.5 # Proxy simple du Training Stress Score
-            
             # 2. Algorithme des Moyennes Mobiles Exponentielles (EMA)
-            # Fitness (CTL) : Lissage sur 42 jours
             seances['Fitness_CTL'] = seances['TSS'].ewm(span=42, adjust=False).mean()
-            # Fatigue (ATL) : Lissage sur 7 jours
             seances['Fatigue_ATL'] = seances['TSS'].ewm(span=7, adjust=False).mean()
-            # Forme (TSB - Training Stress Balance) : La différence décalée d'un jour
             seances['Forme_TSB'] = seances['Fitness_CTL'].shift(1) - seances['Fatigue_ATL'].shift(1)
             seances = seances.fillna(0) # Nettoie le premier jour
             
             fig_banister = make_subplots(specs=[[{"secondary_y": True}]])
             
-            # Aire bleue de Fitness (Condition Physique)
+            # Aire bleue de Fitness
             fig_banister.add_trace(go.Scatter(
                 x=seances['Date'], y=seances['Fitness_CTL'], name="Fitness (CTL)",
                 mode='lines', line=dict(color='#1E90FF', width=2), fill='tozeroy', fillcolor='rgba(30, 144, 255, 0.2)'
@@ -872,13 +868,13 @@ elif page == "Mes Insights (Data)":
                 mode='lines', line=dict(color='#FF4B4B', width=2, dash='dot')
             ), secondary_y=False)
             
-            # Ligne jaune/verte de Forme (TSB) sur l'axe secondaire
+            # Ligne jaune/verte de Forme (TSB)
             fig_banister.add_trace(go.Scatter(
                 x=seances['Date'], y=seances['Forme_TSB'], name="Forme (TSB)",
                 mode='lines', line=dict(color='#FFD700', width=3)
             ), secondary_y=True)
             
-            # Zones de Forme (Sweet spot de TSB entre -10 et +10)
+            # Zones de Forme
             fig_banister.add_hrect(y0=-10, y1=10, fillcolor="#00FF00", opacity=0.1, secondary_y=True, annotation_text="Pic de Forme")
             fig_banister.add_hrect(y0=-30, y1=-10, fillcolor="#FFA500", opacity=0.1, secondary_y=True, annotation_text="Zone d'Entraînement")
             fig_banister.add_hrect(y0=-100, y1=-30, fillcolor="#FF0000", opacity=0.1, secondary_y=True, annotation_text="Risque Surcharge")
@@ -893,8 +889,9 @@ elif page == "Mes Insights (Data)":
         col_pred1, col_pred2 = st.columns(2)
         
         with col_pred1:
-            # Algorithme de Probabilité de Blessure basé sur le TSB
-            tsb_actuel = seances['Forme_TSB'].iloc[-1] if len(seances) > 3 else 0
+            # SÉCURITÉ : on vérifie que la colonne Forme_TSB existe bien
+            tsb_actuel = seances['Forme_TSB'].iloc[-1] if 'Forme_TSB' in seances.columns else 0
+            
             if tsb_actuel < -30:
                 risque, couleur_r = "ÉLEVÉ (75%)", "#FF4B4B"
                 conseil = "⚠️ Ton corps ne compense plus la fatigue. Divise le volume par 2 aujourd'hui."
@@ -909,12 +906,12 @@ elif page == "Mes Insights (Data)":
             st.write(conseil)
             
         with col_pred2:
-            # Algorithme Time To Recovery (TTR) basé sur le TSS de la veille
-            tss_hier = seances['TSS'].iloc[-1] if len(seances) > 0 else 0
-            ttr_heures = max(12, min(72, tss_hier * 0.4)) # Estimation simplifiée
+            # SÉCURITÉ : on lit la colonne TSS qui est maintenant toujours générée
+            tss_hier = seances['TSS'].iloc[-1] if 'TSS' in seances.columns else 0
+            ttr_heures = max(12, min(72, tss_hier * 0.4)) 
             st.markdown(f"<h4>Temps de Récupération Estimé (TTR)</h4>", unsafe_allow_html=True)
             st.metric(label="Régénération métabolique complète dans :", value=f"{int(ttr_heures)} Heures")
-
+            
 # --- SECTION 4 : SURCHARGE PROGRESSIVE (Design Premium) ---
         st.subheader("🏋️‍♂️ Suivi de Préparation Physique (PPG)")
         st.caption("Évolution des charges sur les exercices de renforcement musculaire (Force & Prévention).")
