@@ -255,8 +255,8 @@ def calculer_readiness(sommeil, vfc, fcr, energie):
     return round(readiness)
     
 # ---- HEADER ----
-st.title("Dynamic Hybrid Coach")
-st.subheader("Ton coach personnel : Entrainement Hybride")
+st.title("⚡ Enduraw - Athlete System")
+st.subheader("Optimisation de la performance & Suivi de récupération")
 st.divider()
 
 # --- NAVIGATION SIDEBAR AMÉLIORÉE ---
@@ -683,9 +683,13 @@ elif page == "Mes Insights (Data)":
         # ⚠️ ATTENTION AUX INDEX : Ajustez selon l'ordre des colonnes dans votre Google Sheets
         # Si vos colonnes sont : Date, Sommeil, VFC, FCR, Energie, Muscles
         try:
-            val_sommeil = float(dernier_checkin.iloc[1])
+            # 1. On récupère la valeur brute
+            brut_sommeil = str(dernier_checkin.iloc[1])
+            # 2. On remplace la virgule par un point, puis on convertit en float
+            val_sommeil = float(brut_sommeil.replace(',', '.'))
+            
             val_vfc = int(dernier_checkin.iloc[2])
-            val_fcr = int(dernier_checkin.iloc[3]) # Votre nouvelle colonne FCR !
+            val_fcr = int(dernier_checkin.iloc[3]) 
             val_energie = int(dernier_checkin.iloc[4])
             
             # On appelle notre algorithme
@@ -704,9 +708,9 @@ elif page == "Mes Insights (Data)":
                     'bgcolor': "rgba(0,0,0,0)",
                     'borderwidth': 0,
                     'steps': [
-                        {'range': [0, 50], 'color': "rgba(255, 75, 75, 0.4)"},  # Rouge (Fatigue)
-                        {'range': [50, 75], 'color': "rgba(255, 215, 0, 0.4)"}, # Jaune (Modéré)
-                        {'range': [75, 100], 'color': "rgba(88, 214, 141, 0.4)"} # Vert (Top forme)
+                        {'range': [0, 50], 'color': "rgba(255, 75, 75, 0.4)"},  # Rouge
+                        {'range': [50, 75], 'color': "rgba(255, 215, 0, 0.4)"}, # Jaune
+                        {'range': [75, 100], 'color': "rgba(88, 214, 141, 0.4)"} # Vert
                     ],
                 }
             ))
@@ -725,7 +729,7 @@ elif page == "Mes Insights (Data)":
                 else:
                     st.error("🔴 **Alerte Fatigue !** Tes constantes sont dans le rouge. L'algorithme recommande du repos actif ou un jour off pour éviter la blessure.")
         except Exception as e:
-            st.warning("Assurez-vous d'avoir bien ajouté la colonne FCR dans votre Google Sheets pour calculer le Readiness Score.")
+            st.error(f"Erreur technique détaillée : {e}")
 
     st.divider()
 
@@ -851,50 +855,53 @@ elif page == "Mes Insights (Data)":
 
         st.divider()
 
-        # --- SECTION 4 : SURCHARGE PROGRESSIVE (Design Premium) ---
-        st.subheader("📈 Surcharge Progressive par Exercice")
+# --- SECTION 4 : SURCHARGE PROGRESSIVE (Design Premium) ---
+        # st.subheader("📈 Surcharge Progressive par Exercice")
         
-        liste_exos = [exo for exo in df_realise.iloc[:, 4].unique() if "Bilan" not in str(exo)]
-        
-        if liste_exos:
-            exo_choisi = st.selectbox("Sélectionne un exercice pour analyser ta progression :", liste_exos)
+        # Le code est caché dans ce menu déroulant
+        with st.expander("Afficher l'analyse de progression détaillée 📈"):
+            liste_exos = [exo for exo in df_realise.iloc[:, 4].unique() if "Bilan" not in str(exo)]
             
-            df_exo = df_realise[df_realise.iloc[:, 4] == exo_choisi].copy()
-            prog_exo = df_exo.groupby('Date').agg(Poids_Max=('Poids', 'max'), Reps_Totales=('Reps', 'sum')).reset_index()
-            
-            fig_prog = make_subplots(specs=[[{"secondary_y": True}]])
-            
-            # Aire remplie sous la courbe pour le volume (Reps)
-            fig_prog.add_trace(go.Scatter(
-                x=prog_exo['Date'], y=prog_exo['Reps_Totales'], 
-                name="Répétitions Totales", 
-                fill='tozeroy', mode='lines',
-                line=dict(color='rgba(255, 255, 255, 0.2)', width=1),
-                fillcolor='rgba(255, 255, 255, 0.05)'
-            ), secondary_y=False)
-            
-            # Ligne de Poids max avec dégradé et lissage
-            fig_prog.add_trace(go.Scatter(
-                x=prog_exo['Date'], y=prog_exo['Poids_Max'], 
-                name="Poids Max Soulevé (kg)", 
-                mode="lines+markers", 
-                line=dict(color="#FF4B4B", width=3, shape='spline'),
-                marker=dict(size=8, color="#0e1117", line=dict(color="#FF4B4B", width=2))
-            ), secondary_y=True)
-            
-            fig_prog.update_layout(
-                template="plotly_dark",
-                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                height=350,
-                margin=dict(l=0, r=0, t=10, b=0),
-                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-                hovermode="x unified"
-            )
-            fig_prog.update_yaxes(showgrid=False, secondary_y=False)
-            fig_prog.update_yaxes(showgrid=True, gridcolor='rgba(255,255,255,0.1)', secondary_y=True)
-            st.plotly_chart(fig_prog, use_container_width=True)
+            if liste_exos:
+                exo_choisi = st.selectbox("Sélectionne un exercice pour analyser ta progression :", liste_exos)
+                
+                df_exo = df_realise[df_realise.iloc[:, 4] == exo_choisi].copy()
+                prog_exo = df_exo.groupby('Date').agg(Poids_Max=('Poids', 'max'), Reps_Totales=('Reps', 'sum')).reset_index()
+                
+                fig_prog = make_subplots(specs=[[{"secondary_y": True}]])
+                
+                # Aire remplie sous la courbe pour le volume (Reps)
+                fig_prog.add_trace(go.Scatter(
+                    x=prog_exo['Date'], y=prog_exo['Reps_Totales'], 
+                    name="Répétitions Totales", 
+                    fill='tozeroy', mode='lines',
+                    line=dict(color='rgba(255, 255, 255, 0.2)', width=1),
+                    fillcolor='rgba(255, 255, 255, 0.05)'
+                ), secondary_y=False)
+                
+                # Ligne de Poids max avec dégradé et lissage
+                fig_prog.add_trace(go.Scatter(
+                    x=prog_exo['Date'], y=prog_exo['Poids_Max'], 
+                    name="Poids Max Soulevé (kg)", 
+                    mode="lines+markers", 
+                    line=dict(color="#FF4B4B", width=3, shape='spline'),
+                    marker=dict(size=8, color="#0e1117", line=dict(color="#FF4B4B", width=2))
+                ), secondary_y=True)
+                
+                fig_prog.update_layout(
+                    template="plotly_dark",
+                    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                    height=350,
+                    margin=dict(l=0, r=0, t=10, b=0),
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                    hovermode="x unified"
+                )
+                fig_prog.update_yaxes(showgrid=False, secondary_y=False)
+                fig_prog.update_yaxes(showgrid=True, gridcolor='rgba(255,255,255,0.1)', secondary_y=True)
+                st.plotly_chart(fig_prog, use_container_width=True)
 
         st.divider()
+        
 
         # --- SECTION 5 : ZONES CARDIAQUES (Donut Futuriste) ---
         st.subheader("❤️ Répartition de l'Endurance (Zones Cardiaques)")
