@@ -353,7 +353,7 @@ if page == "Morning Readiness":
         muscles_str = ", ".join(muscles_douloureux) if muscles_douloureux else "Aucun"
         
         nouvelle_ligne_checkin = [
-            date_du_jour, float(sommeil), int(vfc), int(energie), str(muscles_str)
+            date_du_jour, float(sommeil), int(vfc), int(fcr), int(energie), str(muscles_str)
         ]
 
         try:
@@ -640,7 +640,7 @@ elif page == "Ma Séance du Jour":
         
 #----PAGE 3 : MES STATS----       
 
-elif page == "Mes Stats":
+elif page == "Mes Insights (Data)":
     st.header("📊 Cockpit Performance & Récupération")
     
     # --- CHARGEMENT DES DONNÉES ---
@@ -847,7 +847,7 @@ elif page == "Mes Stats":
             st.caption("Aucune donnée de fréquence cardiaque enregistrée pour le moment.")
                     
 # ---- PAGE 4 : CRÉATEUR DE PROGRAMME ----
-elif page == "Coach IA & Programme":
+elif page == "Coach IA (Analyse)":
     st.header("🛠️ Gestion du Programme")
     
     tab1, tab2 = st.tabs([" Saisie Rapide (Historique)", "🤖 Génération par l'IA"])
