@@ -269,10 +269,9 @@ with st.sidebar:
     
     page = st.radio(
         "Menu Principal",
-        ["Morning Readiness", "Mes Insights (Data)", "Coach IA (Analyse)"],
+        ["Morning Readiness", "Ma Séance du Jour", "Mes Insights (Data)", "Coach IA (Analyse)"],
         index=0
     )
-    # J'ai temporairement retiré "Ma séance du jour" pour qu'on se focus sur la DATA de santé, comme demandé dans le cas.
     
     st.divider()
     st.info("Version 3.0 - Intelligence Artificielle activée")
@@ -945,178 +944,118 @@ elif page == "Coach IA (Analyse)":
     tab1, tab2 = st.tabs([" Saisie Rapide (Historique)", "🤖 Génération par l'IA"])
 
     # ---------------------------------------------------------
-    # ONGLET 1 : SAISIE INTELLIGENTE BASÉE SUR TON HISTORIQUE
+    # ONGLET 1 : PLANIFICATION MANUELLE (Design Premium)
     # ---------------------------------------------------------
     with tab1:
-        st.write("Ajoute un exercice ou une séance complète dans ton programme.")
+        st.markdown("### 📝 Planificateur de cycle")
+        st.write("Ajoute de nouveaux blocs de travail à ton calendrier d'entraînement.")
         
-        # --- NOUVEAUTÉ : VERROUILLAGE DE LA SEMAINE ---
-        try:
-            df = load_programme()
-            liste_seances = df["Type_Seance"].dropna().unique().tolist()
-            liste_exos = df["Exercice_WOD"].dropna().unique().tolist()
-            
-            # On cherche la semaine la plus avancée dans ton programme
-            semaine_actuelle = int(df["Semaine"].max()) if not df.empty else 1
-        except:
-            liste_seances = []
-            liste_exos = []
-            semaine_actuelle = 1
-
-        options_seances = ["-- Nouvelle séance --"] + liste_seances
-        options_exos = ["-- Nouvel exercice --"] + liste_exos
-
-        # LIGNE 1 : Le contexte (Semaine, Jour, Nom de la séance)
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            # On utilise "semaine_actuelle" comme minimum et valeur par défaut !
-            semaine_proposee = semaine_actuelle + 1  # On propose toujours la semaine suivante
-            semaine = st.number_input("Semaine n°", min_value=1, step=1, value=semaine_actuelle)
-            
-        with col2:
-            jour = st.selectbox("Jour théorique", ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"])
-        with col3:
-            choix_seance = st.selectbox("Nom de la séance", options_seances)
-            if choix_seance == "-- Nouvelle séance --":
-                type_seance = st.text_input("📝 Nom (ex: Upper Body, Hyrox, Course)")
-            else:
-                type_seance = choix_seance
-
-        st.divider()
-
-        st.divider()
-
-        # --- DUPLICATION AUTOMATIQUE DE LA SEMAINE PRÉCÉDENTE ---
-        if type_seance and type_seance != "-- Nouvelle séance --":
+        # --- BLOC 1 : LE CONTEXTE ---
+        with st.container():
+            st.markdown("#### 1️⃣ Contexte de la séance")
             try:
-                df_prog = load_programme()
-                semaine_prec = semaine - 1
-                df_modele = df_prog[
-                    (df_prog["Semaine"] == semaine_prec) & 
-                    (df_prog["Type_Seance"] == type_seance)
-                ].copy()
-                
-                if not df_modele.empty:
-                    st.info(f"📋 **{len(df_modele)} exercices** trouvés en Semaine {semaine_prec} pour {type_seance}")
-                    
-                    # --- PRÉPARATION DU TABLEAU ÉDITABLE ---
-                    df_editable = df_modele[["Exercice_WOD", "Series_Cible", "Reps_Cible", "Poids_Cible_Kg"]].rename(columns={
-                        "Exercice_WOD": "Exercice",
-                        "Series_Cible": "Séries",
-                        "Reps_Cible": "Reps",
-                        "Poids_Cible_Kg": "Poids (kg)"
-                    }).reset_index(drop=True)
+                df = load_programme()
+                liste_seances = df["Type_Seance"].dropna().unique().tolist()
+                liste_exos = df["Exercice_WOD"].dropna().unique().tolist()
+                semaine_actuelle = int(df["Semaine"].max()) if not df.empty else 1
+            except:
+                liste_seances, liste_exos, semaine_actuelle = [], [], 1
 
-                    # --- LA LIGNE MAGIQUE POUR FIXER L'ERREUR ---
-                    # On force 'Reps' en texte pour que Streamlit accepte le TextColumn
-                    df_editable["Reps"] = df_editable["Reps"].astype(str)
-                    
-                    st.caption("✏️ Modifie directement le tableau avant de dupliquer")
-                    df_modifie = st.data_editor(
-                        df_editable,
-                        use_container_width=True,
-                        hide_index=True,
-                        num_rows="dynamic",
-                        column_config={
-                            "Exercice": st.column_config.TextColumn("Exercice", width="large"),
-                            "Séries": st.column_config.NumberColumn("Séries", min_value=1, max_value=10, step=1),
-                            "Reps": st.column_config.TextColumn("Reps"),
-                            "Poids (kg)": st.column_config.NumberColumn("Poids (kg)", min_value=0.0, step=0.5),
-                        }
-                    )
-                    
-                    if st.button("⚡ Dupliquer cette séance modifiée dans la Semaine " + str(semaine), type="primary"):
-                        lignes = []
-                        for _, row in df_modifie.iterrows():
-                            # On vérifie que la ligne n'est pas vide
-                            if pd.notna(row["Exercice"]) and str(row["Exercice"]).strip() != "":
-                                lignes.append([
-                                    int(semaine),
-                                    str(jour),
-                                    str(type_seance),
-                                    str(row["Exercice"]),
-                                    int(row["Séries"]) if pd.notna(row["Séries"]) else 1,
-                                    str(row["Reps"]),
-                                    float(row["Poids (kg)"]) if pd.notna(row["Poids (kg)"]) else 0.0
-                                ])
-                        
-                        if lignes:
-                            try:
-                                client = connect_sheets()
-                                sheet = client.open("DB_Dynamic_Hybrid_Coach")
-                                worksheet = sheet.worksheet("Programme_Theorique")
-                                worksheet.append_rows(lignes)
-                                load_programme.clear() # On vide le cache pour voir les changements
-                                st.success(f"✅ {len(lignes)} exercices dupliqués en Semaine {semaine} !")
-                                st.balloons()
-                            except Exception as e:
-                                st.error(f"Erreur lors de l'écriture : {e}")
+            options_seances = ["-- Nouvelle séance --"] + liste_seances
+            options_exos = ["-- Nouvel exercice --"] + liste_exos
+
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                semaine = st.number_input("Semaine cible", min_value=1, step=1, value=semaine_actuelle)
+            with col2:
+                jour = st.selectbox("Jour théorique", ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"])
+            with col3:
+                choix_seance = st.selectbox("Type de séance", options_seances)
+                if choix_seance == "-- Nouvelle séance --":
+                    type_seance = st.text_input("📝 Nommer la séance (ex: Capacité Aérobie, Force Max)")
                 else:
-                    st.caption(f"Aucun modèle trouvé en Semaine {semaine_prec} pour {type_seance}.")
-            except Exception as e:
-                st.caption(f"Impossible de charger le modèle : {e}")
+                    type_seance = choix_seance
 
-        st.divider()
+        st.write("") # Petit espace respirable
 
-        # --- LE CERVEAU DYNAMIQUE ---
-
-        # --- LE CERVEAU DYNAMIQUE ---
-        # On vérifie en temps réel si tu as tapé un mot clé Cardio/Hyrox
-        type_seance_lower = str(type_seance).lower() if type_seance else ""
-        mots_cles_cardio_wod = ["hyrox", "wod", "circuit", "conditioning", "boxing", "boxe", "course", "run", "fractionné", "piste", "endurance", "z2"]
-        est_cardio_wod = any(mot in type_seance_lower for mot in mots_cles_cardio_wod)
-
-        # LIGNE 2 : Les détails (qui s'adaptent selon la séance)
-        if est_cardio_wod:
-            # INTERFACE HYROX / COURSE
-            st.info("🔥 Séance métabolique / Cardio détectée ! L'interface s'adapte.")
-            col_a, col_b = st.columns(2)
-            with col_a:
-                exercice = st.text_input("Détails / Format", value="WOD Global", help="Ex: Course 5km, WOD Solo, Sac de frappe...")
-            with col_b:
-                duree = st.number_input("Durée totale estimée (min)", min_value=1, step=1, value=45)
-            
-            # On force les valeurs "muscu" à 0 pour garder le Google Sheets propre
-            series = 0
-            reps = f"{duree} min"
-            poids = 0.0
-            
-        else:
-            # INTERFACE RENFORCEMENT & FORCE SPÉCIFIQUE
-            st.info("🏋️‍♂️ Séance de Renforcement Musculaire / PPG détectée.")
-            choix_exo = st.selectbox("Mouvement de PPG", options_exos)
-            if choix_exo == "-- Nouvel exercice --":
-                exercice = st.text_input("📝 Nom du mouvement (ex: Back Squat, Fentes Bulgares, Soulevé de terre)")
-            else:
-                exercice = choix_exo
-
-            col_a, col_b, col_c = st.columns(3)
-            with col_a:
-                series = st.number_input("Séries cibles", min_value=1, step=1, value=3)
-            with col_b:
-                reps = st.text_input("Reps / Durée", value="8", help="Ex: 8 pour la force, ou 45s pour du gainage")
-            with col_c:
-                poids = st.number_input("Charge cible (kg)", min_value=0.0, step=0.5, value=0.0, help="Laisse à 0 si c'est au poids du corps")
-
-        # BOUTON DE SAUVEGARDE
-        if st.button("➕ Ajouter au Programme (Google Sheets)", type="primary"):
-            if not type_seance or not exercice:
-                st.error("⚠️ Le nom de la séance et de l'exercice sont obligatoires.")
-            else:
-                nouvelle_ligne_prog = [
-                    int(semaine), str(jour), str(type_seance), 
-                    str(exercice), int(series), str(reps), float(poids)
-                ]
+        # --- OPTION CACHÉE : DUPLICATION (Évite de polluer l'écran) ---
+        if type_seance and type_seance != "-- Nouvelle séance --":
+            with st.expander("⚡ Optionnel : Dupliquer depuis une semaine précédente", expanded=False):
                 try:
-                    save_nouveau_programme(nouvelle_ligne_prog) 
+                    df_prog = load_programme()
+                    semaine_prec = semaine - 1
+                    df_modele = df_prog[(df_prog["Semaine"] == semaine_prec) & (df_prog["Type_Seance"] == type_seance)].copy()
                     
-                    # ✅ ON VIDE LA MÉMOIRE DE LA LECTURE SPÉCIFIQUEMENT
-                    load_programme.clear()
-                    
-                    st.success(f"✅ Ajouté avec succès à ta semaine {semaine} !")
-                    st.balloons()
-                except Exception as e:
-                    st.error(f"Erreur de connexion : {e}")
+                    if not df_modele.empty:
+                        st.info(f"📋 **{len(df_modele)} mouvements** trouvés en Semaine {semaine_prec}.")
+                        df_editable = df_modele[["Exercice_WOD", "Series_Cible", "Reps_Cible", "Poids_Cible_Kg"]].rename(columns={
+                            "Exercice_WOD": "Exercice", "Series_Cible": "Séries", "Reps_Cible": "Reps", "Poids_Cible_Kg": "Charge (kg)"
+                        }).reset_index(drop=True)
+                        df_editable["Reps"] = df_editable["Reps"].astype(str)
+                        
+                        df_modifie = st.data_editor(df_editable, use_container_width=True, hide_index=True, num_rows="dynamic")
+                        
+                        if st.button("Valider la duplication", type="primary"):
+                            lignes = []
+                            for _, row in df_modifie.iterrows():
+                                if pd.notna(row["Exercice"]) and str(row["Exercice"]).strip() != "":
+                                    lignes.append([int(semaine), str(jour), str(type_seance), str(row["Exercice"]), 
+                                                   int(row["Séries"]) if pd.notna(row["Séries"]) else 1, str(row["Reps"]), 
+                                                   float(row["Charge (kg)"]) if pd.notna(row["Charge (kg)"]) else 0.0])
+                            if lignes:
+                                save_performance(lignes) # Remplacez par save_nouveau_programme(lignes) si vous avez une fonction bulk, sinon une boucle.
+                                for ligne in lignes: save_nouveau_programme(ligne)
+                                load_programme.clear()
+                                st.success("✅ Duplication réussie !")
+                    else:
+                        st.caption(f"Aucun modèle trouvé pour la Semaine {semaine_prec}.")
+                except: pass
+
+        # --- BLOC 2 : AJOUT MANUEL D'EXERCICE ---
+        st.write("")
+        with st.container():
+            st.markdown("#### 2️⃣ Ajouter un mouvement")
+            type_seance_lower = str(type_seance).lower() if type_seance else ""
+            mots_cles_cardio = ["course", "run", "fractionné", "piste", "endurance", "z2", "aérobie", "seuil", "vo2"]
+            est_cardio = any(mot in type_seance_lower for mot in mots_cles_cardio)
+
+            if est_cardio:
+                st.info("🏃‍♂️ Bloc métabolique / Cardio détecté.")
+                col_a, col_b = st.columns(2)
+                with col_a:
+                    exercice = st.text_input("Détails du bloc", value="Endurance fondamentale Z2")
+                with col_b:
+                    duree = st.number_input("Durée totale estimée (min)", min_value=1, step=1, value=60)
+                series, reps, poids = 0, f"{duree} min", 0.0
+            else:
+                st.info("🏋️‍♂️ Bloc de Renforcement / PPG détecté.")
+                choix_exo = st.selectbox("Mouvement de PPG", options_exos)
+                if choix_exo == "-- Nouvel exercice --":
+                    exercice = st.text_input("📝 Nom du mouvement (ex: Back Squat)")
+                else:
+                    exercice = choix_exo
+
+                col_a, col_b, col_c = st.columns(3)
+                with col_a:
+                    series = st.number_input("Séries", min_value=1, step=1, value=3)
+                with col_b:
+                    reps = st.text_input("Répétitions / Temps", value="8")
+                with col_c:
+                    poids = st.number_input("Charge (kg)", min_value=0.0, step=0.5, value=0.0)
+
+            # BOUTON DE SAUVEGARDE ESTHÉTIQUE
+            st.write("")
+            if st.button("➕ Ajouter ce mouvement au calendrier", type="primary", use_container_width=True):
+                if not type_seance or not exercice:
+                    st.error("⚠️ Le nom de la séance et du mouvement sont obligatoires.")
+                else:
+                    nouvelle_ligne_prog = [int(semaine), str(jour), str(type_seance), str(exercice), int(series), str(reps), float(poids)]
+                    try:
+                        save_nouveau_programme(nouvelle_ligne_prog) 
+                        load_programme.clear()
+                        st.success(f"✅ Mouvement ajouté à la semaine {semaine} !")
+                    except Exception as e:
+                        st.error(f"Erreur : {e}")
 
     # ---------------------------------------------------------
     # ONGLET 2 : LE COACH IA (DYNAMIQUE)
