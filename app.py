@@ -1134,10 +1134,17 @@ elif page == "Coach IA (Analyse)":
         if not df_checkin.empty:
             dernier_checkin = df_checkin.iloc[-1]
             try:
-                sommeil_defaut = float(dernier_checkin.get("Heures_Sommeil", 7.0))
+                # 1. On nettoie la virgule pour le sommeil
+                brut_sommeil = str(dernier_checkin.get("Heures_Sommeil", "7.0")).replace(',', '.')
+                sommeil_defaut = float(brut_sommeil)
+                
+                # 2. Sécurité : On s'assure que ça ne dépasse pas 12.0 pour Streamlit
+                sommeil_defaut = min(sommeil_defaut, 12.0)
+                
                 energie_defaut = int(dernier_checkin.get("Niveau_Energie", 7))
                 courbatures_defaut = str(dernier_checkin.get("Muscles_Douloureux", "Aucune"))
-            except: pass
+            except Exception as e: 
+                pass
 
         st.info("💡 Les données ci-dessous sont basées sur ton dernier Check-in. Modifie-les si besoin.")
         
