@@ -291,6 +291,27 @@ if st.sidebar.button("🗑️ Annuler ma dernière séance"):
         
 # ---- PAGE 1 : CHECK-IN MATIN ----
 if page == "Morning Readiness":
+    st.markdown("### 🎙️ L'Assistant Rapide (Zéro Friction)")
+    st.write("Pas envie de régler les curseurs ? Dis-moi comment tu te sens, je m'occupe du reste.")
+    
+    texte_checkin = st.text_area("Ta nuit en une phrase :", placeholder="Ex: J'ai dormi 7h, ma FC est à 42, VFC 65, je suis en pleine forme mais j'ai mal aux mollets.")
+    
+    if st.button("🪄 Remplir automatiquement", type="secondary"):
+        with st.spinner("Analyse de tes constantes..."):
+            prompt_nlp = f"""Extrais les données physiologiques de ce texte : "{texte_checkin}". 
+            Renvoie STRICTEMENT un JSON avec ces clés : sommeil (float), fcr (int), vfc (int), energie (int de 1 à 10). 
+            Si une donnée manque, mets 0."""
+            try:
+                reponse = modele_ia.generate_content(prompt_nlp)
+                data_ia = json.loads(reponse.text.replace('```json', '').replace('```', '').strip())
+                # On met à jour la mémoire de la page
+                st.session_state['sommeil_auto'] = float(data_ia.get('sommeil', 7.5))
+                st.session_state['fcr_auto'] = int(data_ia.get('fcr', 45))
+                st.session_state['vfc_auto'] = int(data_ia.get('vfc', 60))
+                st.session_state['energie_auto'] = int(data_ia.get('energie', 7))
+                st.success("Curseurs ajustés ! Vérifie et valide en bas.")
+            except:
+                st.error("L'IA n'a pas pu lire tes constantes, utilise les curseurs.")
     st.header("⚡ Morning Readiness")
     st.markdown("Exprime ton état du jour en **15 secondes chrono**.")
     st.divider()
@@ -817,70 +838,82 @@ elif page == "Mes Insights (Data)":
 
         st.divider()
 
-        # --- SECTION 2 : ACWR (Design Premium) ---
-        st.subheader("🛡️ Risque de Blessure & Surcharge (Méthode de Borg)")
+        # --- SECTION 2 : MODÉLISATION BANISTER (CTL / ATL / TSB) ---
+        st.subheader("🧬 Modélisation de la Forme (Banister / TrainingPeaks)")
+        st.caption("Évolution de ta Condition (Fitness), ta Fatigue, et ton État de Forme (TSB).")
         
-        charge_hebdo = seances.groupby('Semaine')['Charge_Borg'].sum().reset_index()
-        charge_hebdo['Charge_Chronique'] = charge_hebdo['Charge_Borg'].rolling(window=4, min_periods=1).mean()
-        charge_hebdo['ACWR'] = charge_hebdo['Charge_Borg'] / charge_hebdo['Charge_Chronique']
+        # On trie les séances chronologiquement
+        seances = seances.sort_values(by='Date').reset_index(drop=True)
         
-        fig_acwr = make_subplots(specs=[[{"secondary_y": True}]])
-        
-        # Barres de charge avec un rouge sombre transparent
-        fig_acwr.add_trace(go.Bar(
-            x=charge_hebdo['Semaine'], y=charge_hebdo['Charge_Borg'], 
-            name="Charge Hebdo", 
-            marker=dict(color='rgba(255, 75, 75, 0.4)', line=dict(color='#FF4B4B', width=1)),
-            hovertemplate="Semaine %{x}<br>Charge: %{y}<extra></extra>"
-        ), secondary_y=False)
-        
-        # Ligne de Ratio ACWR lissée (spline) avec marqueurs
-        fig_acwr.add_trace(go.Scatter(
-            x=charge_hebdo['Semaine'], y=charge_hebdo['ACWR'], 
-            name="Ratio ACWR", 
-            mode="lines+markers", 
-            line=dict(color="#00F0FF", width=3, shape='spline'), # Cyan néon fluide
-            marker=dict(size=8, color="#00F0FF", symbol='circle')
-        ), secondary_y=True)
-        
-        # Zones de sécurité esthétiques
-        fig_acwr.add_hrect(y0=0.8, y1=1.3, fillcolor="#00FF00", opacity=0.05, secondary_y=True, line_width=0)
-        fig_acwr.add_hrect(y0=1.5, y1=3.0, fillcolor="#FF0000", opacity=0.05, secondary_y=True, line_width=0)
-        
-        # Design général ultra-clean
-        fig_acwr.update_layout(
-            template="plotly_dark",
-            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", # Fond transparent
-            height=400,
-            margin=dict(l=0, r=0, t=30, b=0),
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            hovermode="x unified"
-        )
-        fig_acwr.update_yaxes(showgrid=False, secondary_y=False)
-        fig_acwr.update_yaxes(showgrid=True, gridcolor='rgba(255,255,255,0.1)', secondary_y=True)
-        st.plotly_chart(fig_acwr, use_container_width=True)
+        if len(seances) > 3: # Il faut un minimum de données pour lisser la courbe
+            # 1. Calcul des métriques de charge (TSS proxy)
+            seances['TSS'] = seances['Charge_Borg'] * 1.5 # Proxy simple du Training Stress Score
+            
+            # 2. Algorithme des Moyennes Mobiles Exponentielles (EMA)
+            # Fitness (CTL) : Lissage sur 42 jours
+            seances['Fitness_CTL'] = seances['TSS'].ewm(span=42, adjust=False).mean()
+            # Fatigue (ATL) : Lissage sur 7 jours
+            seances['Fatigue_ATL'] = seances['TSS'].ewm(span=7, adjust=False).mean()
+            # Forme (TSB - Training Stress Balance) : La différence décalée d'un jour
+            seances['Forme_TSB'] = seances['Fitness_CTL'].shift(1) - seances['Fatigue_ATL'].shift(1)
+            seances = seances.fillna(0) # Nettoie le premier jour
+            
+            fig_banister = make_subplots(specs=[[{"secondary_y": True}]])
+            
+            # Aire bleue de Fitness (Condition Physique)
+            fig_banister.add_trace(go.Scatter(
+                x=seances['Date'], y=seances['Fitness_CTL'], name="Fitness (CTL)",
+                mode='lines', line=dict(color='#1E90FF', width=2), fill='tozeroy', fillcolor='rgba(30, 144, 255, 0.2)'
+            ), secondary_y=False)
+            
+            # Ligne rouge de Fatigue
+            fig_banister.add_trace(go.Scatter(
+                x=seances['Date'], y=seances['Fatigue_ATL'], name="Fatigue (ATL)",
+                mode='lines', line=dict(color='#FF4B4B', width=2, dash='dot')
+            ), secondary_y=False)
+            
+            # Ligne jaune/verte de Forme (TSB) sur l'axe secondaire
+            fig_banister.add_trace(go.Scatter(
+                x=seances['Date'], y=seances['Forme_TSB'], name="Forme (TSB)",
+                mode='lines', line=dict(color='#FFD700', width=3)
+            ), secondary_y=True)
+            
+            # Zones de Forme (Sweet spot de TSB entre -10 et +10)
+            fig_banister.add_hrect(y0=-10, y1=10, fillcolor="#00FF00", opacity=0.1, secondary_y=True, annotation_text="Pic de Forme")
+            fig_banister.add_hrect(y0=-30, y1=-10, fillcolor="#FFA500", opacity=0.1, secondary_y=True, annotation_text="Zone d'Entraînement")
+            fig_banister.add_hrect(y0=-100, y1=-30, fillcolor="#FF0000", opacity=0.1, secondary_y=True, annotation_text="Risque Surcharge")
 
-        st.divider()
+            fig_banister.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", hovermode="x unified", legend=dict(orientation="h", y=1.1))
+            st.plotly_chart(fig_banister, use_container_width=True)
+        else:
+            st.info("📊 Continue d'enregistrer des séances. Le modèle de Banister s'activera après quelques jours de données.")
 
-        # --- SECTION 3 : CONSEILS DU COACH (Basé sur Data) ---
-        st.subheader("🗣️ Analyse Stratégique du Coach IA")
-        col_c1, col_c2 = st.columns(2)
+        # --- SECTION 3 : PRÉDICTIONS INTELLIGENTES (L'Atout Data Science) ---
+        st.subheader("🔮 Algorithmes Prédictifs (Live)")
+        col_pred1, col_pred2 = st.columns(2)
         
-        with col_c1:
-            ratio_actuel = charge_hebdo.iloc[-1]['ACWR'] if not charge_hebdo.empty else 1
-            if ratio_actuel > 1.5:
-                st.error("🚨 **SURENTRAÎNEMENT DÉTECTÉ :** Ton ratio ACWR a explosé. Tu augmentes ton volume trop vite. **Lève le pied cette semaine (Deload) !**")
-            elif ratio_actuel < 0.8:
-                st.warning("📉 **SOUS-ENTRAÎNEMENT :** Ta charge de travail baisse par rapport au mois dernier. Tu risques de perdre tes acquis.")
+        with col_pred1:
+            # Algorithme de Probabilité de Blessure basé sur le TSB
+            tsb_actuel = seances['Forme_TSB'].iloc[-1] if len(seances) > 3 else 0
+            if tsb_actuel < -30:
+                risque, couleur_r = "ÉLEVÉ (75%)", "#FF4B4B"
+                conseil = "⚠️ Ton corps ne compense plus la fatigue. Divise le volume par 2 aujourd'hui."
+            elif -30 <= tsb_actuel < -10:
+                risque, couleur_r = "MODÉRÉ (30%)", "#FFA500"
+                conseil = "⚡ Surcharge optimale. Continue, mais surveille ton sommeil."
             else:
-                st.success("✅ **PROGRESSION PARFAITE :** Ton ratio de charge est dans le 'Sweet Spot' (0.8 - 1.3). Continue cette surcharge progressive douce.")
-                
-        with col_c2:
-            st.info(f"🤕 **Douleurs récentes signalées :** {douleurs_recentes}")
-            if sommeil_moyen > 0 and sommeil_moyen < 7:
-                st.warning(f"⚠️ Ton sommeil moyen ({sommeil_moyen:.1f}h) est un frein majeur à la récupération de tes tissus musculaires.")
-
-        st.divider()
+                risque, couleur_r = "FAIBLE (5%)", "#00FF00"
+                conseil = "✅ Fraîcheur optimale. Tu es prêt pour une intensité maximale (PMA/Seuil)."
+            
+            st.markdown(f"<h4 style='color:{couleur_r};'>Probabilité de Blessure : {risque}</h4>", unsafe_allow_html=True)
+            st.write(conseil)
+            
+        with col_pred2:
+            # Algorithme Time To Recovery (TTR) basé sur le TSS de la veille
+            tss_hier = seances['TSS'].iloc[-1] if len(seances) > 0 else 0
+            ttr_heures = max(12, min(72, tss_hier * 0.4)) # Estimation simplifiée
+            st.markdown(f"<h4>Temps de Récupération Estimé (TTR)</h4>", unsafe_allow_html=True)
+            st.metric(label="Régénération métabolique complète dans :", value=f"{int(ttr_heures)} Heures")
 
 # --- SECTION 4 : SURCHARGE PROGRESSIVE (Design Premium) ---
         st.subheader("🏋️‍♂️ Suivi de Préparation Physique (PPG)")
