@@ -638,8 +638,34 @@ elif page == "Ma Séance du Jour":
     except Exception as e:
         st.error(f"Erreur de connexion au programme : {e}")
         
-#----PAGE 3 : MES STATS----       
+#----PAGE 3 : MES STATS----      
 
+# --- SCRIPT DE CALCUL DU READINESS SCORE ---
+def calculer_readiness(sommeil, vfc, fcr, energie):
+    # 1. Score de Sommeil (Optimale autour de 8h)
+    if 7.5 <= sommeil <= 9.0:
+        score_sommeil = 100
+    elif 6.0 <= sommeil < 7.5:
+        score_sommeil = 75
+    elif sommeil > 9.0:
+        score_sommeil = 80
+    else:
+        score_sommeil = 40 # Moins de 6h
+        
+    # 2. Score d'Énergie subjective
+    score_energie = energie * 10 # Énergie de 1 à 10 -> Score de 10 à 100
+    
+    # 3. Score Physiologique (Combo FCR / VFC)
+    # On simule une déviation par rapport à des valeurs de base théoriques
+    # FCR cible = 45bpm (plus elle monte, plus le score baisse)
+    score_fcr = max(0, 100 - (abs(fcr - 45) * 4))
+    # VFC cible = 60ms (plus elle baisse, plus le score baisse)
+    score_vfc = min(100, max(0, (vfc / 60) * 100))
+    
+    # Moyenne pondérée (les datas physiologiques comptent plus que le ressenti !)
+    readiness = (score_sommeil * 0.25) + (score_energie * 0.20) + (score_fcr * 0.30) + (score_vfc * 0.25)
+    return round(readiness)
+    
 elif page == "Mes Insights (Data)":
     st.header("📊 Cockpit Performance & Récupération")
     
