@@ -413,19 +413,26 @@ elif page == "Ma Séance du Jour":
     try:
         df = load_programme()
 
-        semaine = st.selectbox("Semaine", sorted(df["Semaine"].unique()))
+        # --- NOUVEAUTÉ : CHOIX DU JOUR RÉEL ---
+        col_s1, col_s2 = st.columns(2)
+        with col_s1:
+            semaine = st.selectbox("Semaine", sorted(df["Semaine"].unique()))
+        with col_s2:
+            # On calcule quel jour on est aujourd'hui pour le mettre par défaut
+            jours_liste = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
+            jour_actuel_en = datetime.now().strftime("%A")
+            jours_fr = {"Monday": "Lundi", "Tuesday": "Mardi", "Wednesday": "Mercredi", "Thursday": "Jeudi", "Friday": "Vendredi", "Saturday": "Samedi", "Sunday": "Dimanche"}
+            aujourdhui_fr = jours_fr.get(jour_actuel_en, "Lundi")
+            index_aujourdhui = jours_liste.index(aujourdhui_fr) if aujourdhui_fr in jours_liste else 0
+            
+            # L'athlète peut maintenant choisir la date de son log !
+            vrai_jour_actuel = st.selectbox("📅 Réalisé le :", jours_liste, index=index_aujourdhui)
+
         seances_semaine = df[df["Semaine"] == semaine]
         options_seances = seances_semaine['Type_Seance'].unique()
-        choix_seance = st.selectbox("🎯 Quelle séance veux-tu faire ?", options_seances)
+        choix_seance = st.selectbox("🎯 Quelle séance as-tu faite ?", options_seances)
         
         seance_df = seances_semaine[seances_semaine["Type_Seance"] == choix_seance]
-        jour_theorique = seance_df["Jour"].iloc[0]
-        seance_df = seance_df[seance_df["Jour"] == jour_theorique]
-
-        jour_actuel_en = datetime.now().strftime("%A")
-        jours_fr = {"Monday": "Lundi", "Tuesday": "Mardi", "Wednesday": "Mercredi",
-                    "Thursday": "Jeudi", "Friday": "Vendredi", "Saturday": "Samedi", "Sunday": "Dimanche"}
-        vrai_jour_actuel = jours_fr.get(jour_actuel_en, "Lundi")
 
         if seance_df.empty:
             st.info("Aucune séance trouvée.")
@@ -434,29 +441,17 @@ elif page == "Ma Séance du Jour":
             st.subheader(f"Détails : {type_seance}")
             st.divider()
 
-            # --- DÉTECTION DU MODE ---
+            # --- DÉTECTION DU MODE (CORRIGÉE POUR L'ENDURANCE ÉLITE) ---
             type_seance_lower = str(type_seance).lower()
-            mots_cles_course = ["course", "run", "fractionné", "piste", "endurance", "z2"]
-            mots_cles_wod = ["hyrox", "wod", "circuit", "conditioning", "boxing", "boxe"]
             
-            # NOUVEAU : Les mots clés pour la récupération !
+            # On ajoute ici tous les termes physiologiques de notre base de données !
+            mots_cles_course = ["course", "run", "fractionné", "piste", "endurance", "z2", "aérobie", "vo2", "seuil", "liss", "capacité", "vélo", "sortie longue"]
+            mots_cles_wod = ["hyrox", "wod", "circuit", "conditioning", "boxing", "boxe"]
             mots_cles_repos = ["repos", "rest", "recovery", "récupération", "off"]
             
             est_une_course = any(mot in type_seance_lower for mot in mots_cles_course)
             est_un_wod = any(mot in type_seance_lower for mot in mots_cles_wod)
             est_un_repos = any(mot in type_seance_lower for mot in mots_cles_repos)
-
-            # --- BOUTON COPIER SEMAINE DERNIÈRE ---
-            historique_seance = {}
-            if not est_une_course and not est_un_wod and not est_un_repos:
-                col_btn1, _ = st.columns([1, 3])
-                with col_btn1:
-                    if st.button("📋 Pré-remplir depuis ma dernière séance"):
-                        st.session_state["historique_preload"] = get_derniere_seance(str(type_seance))
-                if "historique_preload" in st.session_state:
-                    historique_seance = st.session_state["historique_preload"]
-                    if historique_seance:
-                        st.success(f"✅ {len(historique_seance)} exercices chargés depuis ta dernière séance !")
 
             # =========================================================
             # MODE 1 : JOUR DE REPOS (ÉCRAN ZEN)
@@ -487,64 +482,82 @@ elif page == "Ma Séance du Jour":
             # =========================================================
             # MODE 2 & 3 : CARDIO OU MUSCULATION
             # =========================================================
+            # =========================================================
+            # MODE 2 & 3 : CARDIO SÉPARÉ DU RENFORCEMENT (PPG)
+            # =========================================================
             else:
                 distance, duree_totale, z1, z2, z3, z4, z5 = 0.0, 0, 0, 0, 0, 0, 0
                 format_wod = "Solo"
                 texte_wod_decode = ""
 
-                # --- BLOC CARDIO ---
-                if est_une_course or est_un_wod:
-                    duree_cible_str = str(seance_df["Reps_Cible"].iloc[0])
-                    duree_cible = 30 
-                    try:
-                        chiffres = ''.join(filter(str.isdigit, duree_cible_str))
-                        if chiffres: duree_cible = int(chiffres)
-                    except: pass
+                # --- 🏃‍♂️ INTERFACE CARDIO ÉLITE (ZONES CARDIAQUES) ---
+                if est_une_course:
+                    st.info("🏃‍♂️ Séance Aérobie / Endurance détectée !")
+                    
+                    # Rappel dynamique du programme prévu dans le calendrier théorique
+                    st.markdown("##### 📋 Rappel du plan de séance :")
+                    for _, row in seance_df.iterrows():
+                        st.markdown(f"- **{row['Exercice_WOD']}** *(Objectif : {row['Reps_Cible']})*")
+                    st.write("")
+                    
+                    # Collecte des métriques d'endurance globales
+                    col1, col2 = st.columns(2)
+                    with col1: 
+                        distance = st.number_input("Distance totale (km)", min_value=0.0, step=0.1, value=5.0)
+                    with col2: 
+                        # On essaie de pré-remplir intelligemment la durée cible
+                        duree_cible = 45
+                        try:
+                            chiffres = ''.join(filter(str.isdigit, str(seance_df["Reps_Cible"].iloc[0])))
+                            if chiffres: duree_cible = int(chiffres)
+                        except: pass
+                        duree_totale = st.number_input("Durée totale de l'effort (min)", min_value=0, step=1, value=duree_cible)
 
-                    if est_une_course:
-                        st.info("🏃‍♂️ Séance de course détectée !")
-                        col1, col2 = st.columns(2)
-                        with col1: distance = st.number_input("Distance (km)", min_value=0.0, step=0.1, value=5.0)
-                        with col2: duree_totale = st.number_input("Durée totale (min)", min_value=0, step=1, value=duree_cible)
-                    else:
-                        st.info("🔥 Séance métabolique (Hyrox / Boxe / WOD) détectée !")
-                        col1, col2 = st.columns(2)
-                        with col1: duree_totale = st.number_input("Durée totale (min)", min_value=0, step=1, value=duree_cible)
-                        with col2: format_wod = st.selectbox("Format", ["Solo", "Duo", "Team"])
-
-                    st.write("❤️ **Zones de fréquence cardiaque**")
+                    # LA SECTION REINE POUR ENDURAW : Distribution de l'intensité (Zones 1 à 5)
+                    st.markdown("##### ❤️ Distribution de l'Intensité (Minutes par Zone)")
+                    st.caption("Renseigne le temps passé dans chaque zone d'après ton cardiofréquencemètre.")
+                    
                     cz1, cz2, cz3, cz4, cz5 = st.columns(5)
                     with cz1:
-                        st.markdown("<div class='z1-titre'>Z1</div><span class='fcmax'>50-60%</span>", unsafe_allow_html=True)
+                        st.markdown("<div class='z1-titre'>Z1</div><span class='fcmax'>Récup</span>", unsafe_allow_html=True)
                         z1 = st.number_input("z1", 0, step=1, label_visibility="collapsed", key="z1")
                     with cz2:
-                        st.markdown("<div class='z2-titre'>Z2</div><span class='fcmax'>60-70%</span>", unsafe_allow_html=True)
+                        st.markdown("<div class='z2-titre'>Z2</div><span class='fcmax'>Endur.</span>", unsafe_allow_html=True)
                         z2 = st.number_input("z2", 0, step=1, label_visibility="collapsed", key="z2")
                     with cz3:
-                        st.markdown("<div class='z3-titre'>Z3</div><span class='fcmax'>70-80%</span>", unsafe_allow_html=True)
+                        st.markdown("<div class='z3-titre'>Z3</div><span class='fcmax'>Tempo</span>", unsafe_allow_html=True)
                         z3 = st.number_input("z3", 0, step=1, label_visibility="collapsed", key="z3")
                     with cz4:
-                        st.markdown("<div class='z4-titre'>Z4</div><span class='fcmax'>80-90%</span>", unsafe_allow_html=True)
+                        st.markdown("<div class='z4-titre'>Z4</div><span class='fcmax'>Seuil</span>", unsafe_allow_html=True)
                         z4 = st.number_input("z4", 0, step=1, label_visibility="collapsed", key="z4")
                     with cz5:
-                        st.markdown("<div class='z5-titre'>Z5</div><span class='fcmax'>90-100%</span>", unsafe_allow_html=True)
+                        st.markdown("<div class='z5-titre'>Z5</div><span class='fcmax'>VO2</span>", unsafe_allow_html=True)
                         z5 = st.number_input("z5", 0, step=1, label_visibility="collapsed", key="z5")
                     
                     total_zones = z1 + z2 + z3 + z4 + z5
-                    st.markdown(f"<div style='text-align: right; color: gray; margin-top: 10px;'>Total : {total_zones} min</div>", unsafe_allow_html=True)
-
-                    if est_un_wod:
-                        st.write("📸 Scanner le tableau de la Box")
-                        photo_tableau = st.file_uploader("Upload la photo du WOD", type=['png', 'jpg', 'jpeg'])
-                        if photo_tableau is not None:
-                            st.success("✅ Image chargée !")
-                            texte_wod_decode = st.text_area("Exercices détectés :", value="1000m Run\n50 Wall Balls\n1000m Row...")
+                    st.markdown(f"<div style='text-align: right; color: gray; font-size: 0.85em; font-weight: bold;'>Total cumulé : {total_zones} min (cible théorique : {duree_totale} min)</div>", unsafe_allow_html=True)
                     st.divider()
 
-                # --- BLOC MUSCU ---
-                if not est_une_course and not est_un_wod:
-                    st.write("### 🏋️‍♂️ Détail des exercices")
-                    st.caption("Renseigne tes performances pour chaque série.")
+                # --- 🔥 INTERFACE MÉTABOLIQUE SECONDAIRE (WOD / CROSS-TRAINING) ---
+                elif est_un_wod:
+                    st.info("🔥 Séance métabolique (Cross-Training / WOD) détectée !")
+                    col1, col2 = st.columns(2)
+                    with col1: 
+                        duree_totale = st.number_input("Durée totale (min)", min_value=0, step=1, value=45)
+                    with col2: 
+                        format_wod = st.selectbox("Format", ["Solo", "Duo", "Team"])
+                    
+                    st.write("📸 Scanner le tableau de la Box")
+                    photo_tableau = st.file_uploader("Upload la photo du WOD", type=['png', 'jpg', 'jpeg'])
+                    if photo_tableau is not None:
+                        st.success("✅ Image chargée !")
+                        texte_wod_decode = st.text_area("Exercices détectés :", value="1000m Run\n50 Wall Balls...")
+                    st.divider()
+
+                # --- 🏋️‍♂️ INTERFACE RENFORCEMENT / PPG CLINIQUE ---
+                else:
+                    st.markdown("##### 🏋️‍♂️ Suivi des blocs de Préparation Physique Générale (PPG)")
+                    st.caption("Renseigne tes charges et tes répétitions réelles pour chaque mouvement de force.")
 
                     df_realise = load_historique_realise()
                     for idx, row in seance_df.iterrows():
@@ -554,9 +567,8 @@ elif page == "Ma Séance du Jour":
                         try:
                             nb_series = int(row['Series_Cible'])
                             if nb_series <= 0: nb_series = 1
-                        except:
-                            nb_series = 1
-                            
+                        except: nb_series = 1
+                        
                         nom_exo_base = str(row['Exercice_WOD'])
                         if historique_seance and nom_exo_base in historique_seance:
                             poids_defaut = historique_seance[nom_exo_base]["poids"]
@@ -567,38 +579,28 @@ elif page == "Ma Séance du Jour":
                             try: reps_defaut = int(''.join(filter(str.isdigit, str(row['Reps_Cible']))))
                             except: reps_defaut = 0
 
-                        with st.expander(f"{exo_nom} — {nb_series} séries x {row['Reps_Cible']} reps @ {row['Poids_Cible_Kg']} kg", expanded=True):
-            
-                            # --- SECTION CONSEIL DE PROGRESSION ---
+                        with st.expander(f"⚙️ {exo_nom} — {nb_series} séries prévues", expanded=True):
+                            # Moteur algorithmique de conseil de charge (Anti-crash intégré)
                             try:
-                                # On s'assure que le tableau n'est pas vide et possède assez de colonnes
                                 if not df_realise.empty and len(df_realise.columns) > 7:
-                                    # On cherche la dernière perf pour cet exercice spécifique
                                     dernieres_perfs = df_realise[df_realise.iloc[:, 4].astype(str).str.contains(exo_nom, na=False, regex=False)].tail(1)
-                    
                                     if not dernieres_perfs.empty:
                                         p_prec = dernieres_perfs.iloc[0, 5]
                                         r_prec = dernieres_perfs.iloc[0, 6]
                                         rir_prec = dernieres_perfs.iloc[0, 7]
-                    
-                                        st.markdown(f"ℹ️ **Dernière séance :** {p_prec}kg x {r_prec} (RIR {rir_prec})")
-                    
-                                        # Algorithme de recommandation
-                                        try:
-                                            if int(rir_prec) >= 2:
-                                                st.success(f"📈 **Conseil Coach :** Tu avais de la marge ! Tente **+{round(float(p_prec)*0.05, 1)}kg** ou **+2 reps**.")
-                                            elif int(rir_prec) == 0:
-                                                st.warning("⚖️ **Conseil Coach :** Tu étais à l'échec. Maintien le poids, focus technique.")
-                                        except: pass
-                            except Exception as e:
-                                pass # Si l'historique est vide, on n'affiche pas le conseil, sans faire planter l'application !
-            
-                            st.divider()
+                                        st.markdown(f"ℹ️ **Dernière réalisation :** {p_prec}kg x {r_prec} (RIR {rir_prec})")
+                                        if int(rir_prec) >= 2:
+                                            st.success(f"📈 **Conseil Coach :** Surcharge progressive recommandée : **+{round(float(p_prec)*0.05, 1)}kg**.")
+                                        elif int(rir_prec) == 0:
+                                            st.warning("⚖️ **Conseil Coach :** Échec atteint à la dernière session. Stabilise la charge et focus sur le contrôle moteur.")
+                            except: pass
+                            
+                            st.write("")
                             col_h1, col_h2, col_h3, col_h4 = st.columns([1, 2, 2, 2])
-                            with col_h1: st.markdown("<div style='color: gray; font-size: 0.9em;'>Série</div>", unsafe_allow_html=True)
-                            with col_h2: st.markdown("<div style='color: gray; font-size: 0.9em;'>Poids (kg)</div>", unsafe_allow_html=True)
-                            with col_h3: st.markdown("<div style='color: gray; font-size: 0.9em;'>Reps</div>", unsafe_allow_html=True)
-                            with col_h4: st.markdown("<div style='color: gray; font-size: 0.9em;'>RIR</div>", unsafe_allow_html=True)
+                            with col_h1: st.markdown("<div style='color: gray; font-size: 0.85em; font-weight: bold;'>Série</div>", unsafe_allow_html=True)
+                            with col_h2: st.markdown("<div style='color: gray; font-size: 0.85em; font-weight: bold;'>Charge (kg)</div>", unsafe_allow_html=True)
+                            with col_h3: st.markdown("<div style='color: gray; font-size: 0.85em; font-weight: bold;'>Répétitions</div>", unsafe_allow_html=True)
+                            with col_h4: st.markdown("<div style='color: gray; font-size: 0.85em; font-weight: bold;'>RIR (Marge)</div>", unsafe_allow_html=True)
                             
                             for serie in range(1, nb_series + 1):
                                 col1, col2, col3, col4 = st.columns([1, 2, 2, 2])
@@ -609,20 +611,25 @@ elif page == "Ma Séance du Jour":
                                 with col3:
                                     st.number_input("Reps", min_value=0, step=1, value=reps_defaut, key=f"reps_{safe_key}_s{serie}", label_visibility="collapsed")
                                 with col4:
-                                    st.selectbox("RIR", [0, 1, 2, 3, 4], index=2, key=f"rir_{safe_key}_s{serie}", label_visibility="collapsed")
+                                    st.selectbox("RIR", [0, 1, 2, 3, 4], index=2, key=f"rir_{safe_key}_s{serie}", label_visibility="collapsed", help="Reps in Reserve (Répétitions de réserve avant l'échec)")
 
-                st.divider()
-                duree_muscu = st.number_input("⏱️ Durée de la séance (min)", min_value=0, step=1, value=60)
-                session_rpe = st.slider("Note globale de la séance (RPE)", 1, 10, 7)
-                st.caption("🔥 1-2: Très facile | 3-4: Facile | 5-6: Modéré | 7-8: Difficile | 9: Très difficile | 10: Effort maximal")
+                    st.divider()
+                    duree_totale = st.number_input("⏱️ Durée totale de la séance de PPG (min)", min_value=0, step=1, value=45)
 
-                # --- SAUVEGARDE CARDIO & MUSCU ---
-                if st.button("Enregistrer la séance", type="primary"):
+                # --- 🎛️ ÉVALUATION DE LA CHARGE INTERNE GLOBALE (BORG RPE) ---
+                st.markdown("##### 🧠 Intensité Globale de la Séance (Charge Interne)")
+                session_rpe = st.slider("Note ton niveau d'effort perçu (Échelle de Borg RPE)", 1, 10, 6)
+                st.caption("📋 *1-2 : Très facile | 3-4 : Facile | 5-6 : Modéré / Endurance Fondamentale | 7-8 : Difficile / Seuil | 9-10 : Effort Maximal / PMA*")
+
+                # --- 💾 LOGIQUE DE SAUVEGARDE UNIFIÉE ---
+                st.write("")
+                if st.button("💾 Valider et Enregistrer ma séance", type="primary", use_container_width=True):
                     lignes_a_sauvegarder = []
                     date_du_jour = datetime.now().strftime("%Y-%m-%d")
 
+                    # CAS 1 : Enregistrement de données Cardio / Vo2 Max / Seuil
                     if est_une_course or est_un_wod:
-                        titre_bilan = "Bilan Course" if est_une_course else f"Bilan WOD | Format:{format_wod}"
+                        titre_bilan = f"Bilan Endurance" if est_une_course else f"Bilan WOD | Format:{format_wod}"
                         if est_un_wod and texte_wod_decode:
                             titre_bilan += f" | {texte_wod_decode.replace(chr(10), ' / ')}"
 
@@ -633,7 +640,8 @@ elif page == "Ma Séance du Jour":
                         ]
                         lignes_a_sauvegarder.append(ligne_cardio)
 
-                    if not est_une_course and not est_un_wod:
+                    # CAS 2 : Enregistrement de données de Force / PPG
+                    else:
                         for idx, row in seance_df.iterrows():
                             exo_nom = row['Exercice_WOD']
                             safe_key = f"{idx}_{str(exo_nom).replace(' ', '_')}"
@@ -641,8 +649,7 @@ elif page == "Ma Séance du Jour":
                             try:
                                 nb_series = int(row['Series_Cible'])
                                 if nb_series <= 0: nb_series = 1
-                            except:
-                                nb_series = 1
+                            except: nb_series = 1
                             
                             for serie in range(1, nb_series + 1):
                                 poids = st.session_state[f"poids_{safe_key}_s{serie}"]
@@ -651,24 +658,24 @@ elif page == "Ma Séance du Jour":
                                 rpe_serie = 10 - rir
                                 
                                 nom_exo_complet = f"{exo_nom} (Série {serie})"
-                                
                                 ligne_exo = [
                                     date_du_jour, int(semaine), vrai_jour_actuel, str(type_seance), str(nom_exo_complet), 
                                     float(poids), int(reps), int(rir), int(rpe_serie), int(session_rpe),
-                                    0.0, int(duree_muscu), 0, 0, 0, 0, 0 
+                                    0.0, int(duree_totale), 0, 0, 0, 0, 0
                                 ]
                                 lignes_a_sauvegarder.append(ligne_exo)
                     
+                    # Envoi vers Google Sheets & Flush du cache
                     try:
                         save_performance(lignes_a_sauvegarder)
                         st.cache_data.clear()
-                        st.success(f"✅ Séance enregistrée avec succès pour ce {vrai_jour_actuel} !")
+                        st.success(f"✅ Entraînement enregistré avec succès pour ton {vrai_jour_actuel} ! Les graphiques d'Insights ont été mis à jour.")
                         st.balloons()
                     except Exception as e:
-                        st.error(f"Erreur lors de la sauvegarde : {e}")
+                        st.error(f"Erreur lors de l'écriture sur Google Sheets : {e}")
 
     except Exception as e:
-        st.error(f"Erreur de connexion au programme : {e}")
+        st.error(f"Erreur d'accès au calendrier de l'athlète : {e}")
         
 #----PAGE 3 : MES STATS----      
 
