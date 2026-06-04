@@ -36,9 +36,9 @@ except Exception as e:
     
 # ---- CONFIG ----
 st.set_page_config(
-    page_title="Dynamic Hybrid Coach",
-    page_icon="",
-    layout="wide"
+    page_title="Enduraw - Daily Readiness",
+    page_icon="⚡", # L'éclair fait plus "énergie/performance" que l'haltère
+    layout="centered" # "centered" est BEAUCOUP mieux pour simuler une vue Mobile !
 )
 
 # ---- CONNEXION GOOGLE SHEETS ----
@@ -235,15 +235,16 @@ st.divider()
 
 # --- NAVIGATION SIDEBAR AMÉLIORÉE ---
 with st.sidebar:
-    st.title("Hybrid Coach")
-    st.markdown("## 🏋️‍♂️")
+    st.title("Enduraw Athlete")
+    st.markdown("## ⚡ Profil & Suivi")
     st.divider()
     
     page = st.radio(
         "Menu Principal",
-        [" Check-in Matinal", "Ma Séance du Jour", "Mes Stats", "Coach IA & Programme"],
+        ["Morning Readiness", "Mes Insights (Data)", "Coach IA (Analyse)"],
         index=0
     )
+    # J'ai temporairement retiré "Ma séance du jour" pour qu'on se focus sur la DATA de santé, comme demandé dans le cas.
     
     st.divider()
     st.info("Version 3.0 - Intelligence Artificielle activée")
@@ -262,18 +263,21 @@ if st.sidebar.button("🗑️ Annuler ma dernière séance"):
         st.sidebar.error(message)
         
 # ---- PAGE 1 : CHECK-IN MATIN ----
-if page == " Check-in Matinal":
-    st.header(" Check-in Matinal")
-    st.write("Comment tu te sens ce matin ?")
+if page == "Morning Readiness":
+    st.header("⚡ Morning Readiness")
+    st.markdown("Exprime ton état du jour en **15 secondes chrono**.")
+    st.divider()
 
-    col1, col2, col3 = st.columns(3)
+    st.subheader("📊 Constantes Physiologiques")
+    col1, col2 = st.columns(2)
     with col1:
-        sommeil = st.slider("Heures de sommeil", 0.0, 12.0, 7.0, 0.5)
+        sommeil = st.slider("💤 Heures de sommeil", 0.0, 12.0, 7.5, 0.5)
+        fcr = st.number_input("❤️ FC Repos (bpm)", min_value=30, max_value=100, value=45, step=1)
     with col2:
-        vfc = st.slider("VFC (manuellement)", 20, 100, 55)
-    with col3:
-        energie = st.slider("Niveau d'energie", 1, 10, 7)
-        st.caption(" 1-3: Épuisé | 4-6: Normal | 7-8: En forme | 9-10: Prêt à battre des records")
+        energie = st.slider("🔋 Énergie perçue (1-10)", 1, 10, 7)
+        vfc = st.number_input("📉 VFC (ms)", min_value=10, max_value=150, value=60, step=1)
+        
+    st.caption("💡 *Astuce : Une baisse de VFC couplée à une hausse de FCR indique souvent une fatigue nerveuse.*")
 
     st.divider()
     
