@@ -559,6 +559,19 @@ elif page == "Ma Séance du Jour":
                     st.markdown("##### 🏋️‍♂️ Suivi des blocs de Préparation Physique Générale (PPG)")
                     st.caption("Renseigne tes charges et tes répétitions réelles pour chaque mouvement de force.")
 
+                    # ---> LE CORRECTIF EST ICI (On recrée la mémoire) <---
+                    historique_seance = {}
+                    col_btn, _ = st.columns([1, 2])
+                    with col_btn:
+                        if st.button("📋 Pré-remplir avec mes anciennes charges"):
+                            st.session_state["historique_preload"] = get_derniere_seance(str(type_seance))
+                    
+                    if "historique_preload" in st.session_state:
+                        historique_seance = st.session_state["historique_preload"]
+                        if historique_seance:
+                            st.success("✅ Charges récupérées !")
+                    # --------------------------------------------------------
+
                     df_realise = load_historique_realise()
                     for idx, row in seance_df.iterrows():
                         exo_nom = row['Exercice_WOD']
@@ -570,6 +583,7 @@ elif page == "Ma Séance du Jour":
                         except: nb_series = 1
                         
                         nom_exo_base = str(row['Exercice_WOD'])
+                        # La suite de votre code reste identique...
                         if historique_seance and nom_exo_base in historique_seance:
                             poids_defaut = historique_seance[nom_exo_base]["poids"]
                             reps_defaut = historique_seance[nom_exo_base]["reps"]
