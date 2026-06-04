@@ -228,6 +228,32 @@ def get_derniere_seance(type_seance_nom):
     except:
         return {}        
         
+# --- SCRIPT DE CALCUL DU READINESS SCORE ---
+def calculer_readiness(sommeil, vfc, fcr, energie):
+    # 1. Score de Sommeil (Optimale autour de 8h)
+    if 7.5 <= sommeil <= 9.0:
+        score_sommeil = 100
+    elif 6.0 <= sommeil < 7.5:
+        score_sommeil = 75
+    elif sommeil > 9.0:
+        score_sommeil = 80
+    else:
+        score_sommeil = 40 # Moins de 6h
+        
+    # 2. Score d'Énergie subjective
+    score_energie = energie * 10 # Énergie de 1 à 10 -> Score de 10 à 100
+    
+    # 3. Score Physiologique (Combo FCR / VFC)
+    # On simule une déviation par rapport à des valeurs de base théoriques
+    # FCR cible = 45bpm (plus elle monte, plus le score baisse)
+    score_fcr = max(0, 100 - (abs(fcr - 45) * 4))
+    # VFC cible = 60ms (plus elle baisse, plus le score baisse)
+    score_vfc = min(100, max(0, (vfc / 60) * 100))
+    
+    # Moyenne pondérée (les datas physiologiques comptent plus que le ressenti !)
+    readiness = (score_sommeil * 0.25) + (score_energie * 0.20) + (score_fcr * 0.30) + (score_vfc * 0.25)
+    return round(readiness)
+    
 # ---- HEADER ----
 st.title("Dynamic Hybrid Coach")
 st.subheader("Ton coach personnel : Entrainement Hybride")
@@ -640,38 +666,68 @@ elif page == "Ma Séance du Jour":
         
 #----PAGE 3 : MES STATS----      
 
-# --- SCRIPT DE CALCUL DU READINESS SCORE ---
-def calculer_readiness(sommeil, vfc, fcr, energie):
-    # 1. Score de Sommeil (Optimale autour de 8h)
-    if 7.5 <= sommeil <= 9.0:
-        score_sommeil = 100
-    elif 6.0 <= sommeil < 7.5:
-        score_sommeil = 75
-    elif sommeil > 9.0:
-        score_sommeil = 80
-    else:
-        score_sommeil = 40 # Moins de 6h
-        
-    # 2. Score d'Énergie subjective
-    score_energie = energie * 10 # Énergie de 1 à 10 -> Score de 10 à 100
-    
-    # 3. Score Physiologique (Combo FCR / VFC)
-    # On simule une déviation par rapport à des valeurs de base théoriques
-    # FCR cible = 45bpm (plus elle monte, plus le score baisse)
-    score_fcr = max(0, 100 - (abs(fcr - 45) * 4))
-    # VFC cible = 60ms (plus elle baisse, plus le score baisse)
-    score_vfc = min(100, max(0, (vfc / 60) * 100))
-    
-    # Moyenne pondérée (les datas physiologiques comptent plus que le ressenti !)
-    readiness = (score_sommeil * 0.25) + (score_energie * 0.20) + (score_fcr * 0.30) + (score_vfc * 0.25)
-    return round(readiness)
+
     
 elif page == "Mes Insights (Data)":
-    st.header("📊 Cockpit Performance & Récupération")
+    st.header("📊 Cockpit Performance & Readiness")
     
     # --- CHARGEMENT DES DONNÉES ---
     df_realise = load_historique_realise()
     df_checkin = load_historique_checkin()
+
+    # --- AFFICHAGE DU READINESS SCORE ---
+    if not df_checkin.empty:
+        # On récupère la toute dernière ligne (le check-in du jour)
+        dernier_checkin = df_checkin.iloc[-1]
+        
+        # ⚠️ ATTENTION AUX INDEX : Ajustez selon l'ordre des colonnes dans votre Google Sheets
+        # Si vos colonnes sont : Date, Sommeil, VFC, FCR, Energie, Muscles
+        try:
+            val_sommeil = float(dernier_checkin.iloc[1])
+            val_vfc = int(dernier_checkin.iloc[2])
+            val_fcr = int(dernier_checkin.iloc[3]) # Votre nouvelle colonne FCR !
+            val_energie = int(dernier_checkin.iloc[4])
+            
+            # On appelle notre algorithme
+            score = calculer_readiness(val_sommeil, val_vfc, val_fcr, val_energie)
+            
+            # --- JAUGE PLOTLY FUTURISTE ---
+            fig_gauge = go.Figure(go.Indicator(
+                mode = "gauge+number",
+                value = score,
+                number = {'suffix': "%", 'font': {'size': 50, 'color': "white"}},
+                domain = {'x': [0, 1], 'y': [0, 1]},
+                title = {'text': "Readiness Score Global", 'font': {'size': 20, 'color': 'gray'}},
+                gauge = {
+                    'axis': {'range': [None, 100], 'tickwidth': 1, 'tickcolor': "white"},
+                    'bar': {'color': "white", 'thickness': 0.2},
+                    'bgcolor': "rgba(0,0,0,0)",
+                    'borderwidth': 0,
+                    'steps': [
+                        {'range': [0, 50], 'color': "rgba(255, 75, 75, 0.4)"},  # Rouge (Fatigue)
+                        {'range': [50, 75], 'color': "rgba(255, 215, 0, 0.4)"}, # Jaune (Modéré)
+                        {'range': [75, 100], 'color': "rgba(88, 214, 141, 0.4)"} # Vert (Top forme)
+                    ],
+                }
+            ))
+            fig_gauge.update_layout(paper_bgcolor="rgba(0,0,0,0)", height=350, margin=dict(t=50, b=0, l=0, r=0))
+            
+            # Affichage dans l'application
+            col_gauge, col_texte = st.columns([1, 1])
+            with col_gauge:
+                st.plotly_chart(fig_gauge, use_container_width=True)
+            with col_texte:
+                st.markdown("<br><br>", unsafe_allow_html=True)
+                if score >= 75:
+                    st.success("🟢 **Feu vert !** Tes constantes sont excellentes. Tu peux encaisser une grosse charge d'entraînement aujourd'hui.")
+                elif score >= 50:
+                    st.warning("🟡 **Attention !** Récupération moyenne. Privilégie une séance d'endurance fondamentale (Zone 2) ou réduis l'intensité.")
+                else:
+                    st.error("🔴 **Alerte Fatigue !** Tes constantes sont dans le rouge. L'algorithme recommande du repos actif ou un jour off pour éviter la blessure.")
+        except Exception as e:
+            st.warning("Assurez-vous d'avoir bien ajouté la colonne FCR dans votre Google Sheets pour calculer le Readiness Score.")
+
+    st.divider()
 
     if df_realise.empty:
         st.info("Aucune donnée d'entraînement enregistrée pour le moment.")
