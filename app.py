@@ -149,19 +149,21 @@ def delete_last_session():
         
 def generer_seance_ia(energie, sommeil, courbatures, objectif):
     # On force l'IA à répondre avec un format JSON strict
-    prompt = f"""Tu es un coach sportif d'élite expert en entraînement hybride.
-    Voici l'état du client : Sommeil: {sommeil}h, Énergie: {energie}/10, Douleurs: {courbatures}, Objectif: {objectif}.
+    prompt = f"""Tu es le moteur d'intelligence artificielle d'Enduraw, un expert d'élite en physiologie du sport et entraînement d'endurance (Triathlon, Trail, Cyclisme).
+    Voici l'état actuel de l'athlète : Sommeil: {sommeil}h, Énergie: {energie}/10, Douleurs musculaires localisées: {courbatures}, Objectif de la séance: {objectif}.
     
-    Règles de sécurité : Si l'énergie est < 5 ou le sommeil < 6h, impose de la récupération active ou du cardio très léger. Évite les muscles douloureux.
-    
-    Tu DOIS répondre STRICTEMENT au format JSON. Ne renvoie aucun autre texte avant ou après.
-    Voici le format exact attendu :
+    Règles physiologiques strictes :
+    1. Si l'énergie est < 5 ou le sommeil < 6h, impose STRICTEMENT une séance de récupération active (Active Recovery) ou du cardio en Zone 1 / LISS à basse intensité.
+    2. Si l'athlète signale des douleurs (ex: Mollets, Genoux), adapte la séance. S'il veut du cardio, privilégie le cyclisme fluide sans impact plutôt que la course à pied pour protéger les articulations.
+    3. Si l'objectif est du "Renforcement", propose des mouvements de PPG spécifiques à l'endurance (ex: Squat excentrique, Soulevé de terre partiel, Mollets sur step, Gainage dynamique).
+
+    Tu DOIS répondre STRICTEMENT au format JSON, sans fioritures, balises ou texte périphérique.
+    Format attendu :
     {{
-        "titre": "Titre de la séance",
-        "message": "Ton mot d'encouragement personnalisé",
+        "titre": "Nom scientifique de la séance (ex: Endurance Fondamentale Z2, Force sous-maximale PPG)",
+        "message": "Ton analyse de physiologiste et ton mot d'encouragement par rapport à ses constantes du matin",
         "exercices": [
-            {{"nom": "Nom de l'exercice 1", "series": 4, "reps": 10, "poids": 20}},
-            {{"nom": "Nom de l'exercice 2", "series": 3, "reps": 12, "poids": 0}}
+            {{"nom": "Mouvement ou Bloc cardio (ex: Ligne de course Z2 ou Fentes bulgares)", "series": 3, "reps": 10, "poids": 0}}
         ]
     }}
     """
@@ -783,7 +785,7 @@ elif page == "Mes Insights (Data)":
             df_checkin['Date'] = pd.to_datetime(df_checkin.iloc[:, 0])
             df_checkin['Sommeil'] = pd.to_numeric(df_checkin.iloc[:, 1], errors='coerce')
             sommeil_moyen = df_checkin.tail(7)['Sommeil'].mean() # Moyenne sur 7 jours
-            douleurs_recentes = df_checkin.iloc[-1, 4] # Colonne des muscles douloureux du dernier check-in
+            douleurs_recentes = df_checkin.iloc[-1, 5] # Colonne des muscles douloureux du dernier check-in
             col4.metric("Sommeil Moyen (7j)", f"{sommeil_moyen:.1f} h")
         else:
             col4.metric("Sommeil Moyen", "N/A")
@@ -856,14 +858,15 @@ elif page == "Mes Insights (Data)":
         st.divider()
 
 # --- SECTION 4 : SURCHARGE PROGRESSIVE (Design Premium) ---
-        # st.subheader("📈 Surcharge Progressive par Exercice")
+        st.subheader("🏋️‍♂️ Suivi de Préparation Physique (PPG)")
+        st.caption("Évolution des charges sur les exercices de renforcement musculaire (Force & Prévention).")
         
         # Le code est caché dans ce menu déroulant
         with st.expander("Afficher l'analyse de progression détaillée 📈"):
             liste_exos = [exo for exo in df_realise.iloc[:, 4].unique() if "Bilan" not in str(exo)]
             
             if liste_exos:
-                exo_choisi = st.selectbox("Sélectionne un exercice pour analyser ta progression :", liste_exos)
+                exo_choisi = st.selectbox("Sélectionne un mouvement de PPG :", liste_exos)
                 
                 df_exo = df_realise[df_realise.iloc[:, 4] == exo_choisi].copy()
                 prog_exo = df_exo.groupby('Date').agg(Poids_Max=('Poids', 'max'), Reps_Totales=('Reps', 'sum')).reset_index()
@@ -1079,21 +1082,21 @@ elif page == "Coach IA (Analyse)":
             poids = 0.0
             
         else:
-            # INTERFACE MUSCU CLASSIQUE
-            st.info("🏋️‍♂️ Séance de Musculation détectée.")
-            choix_exo = st.selectbox("Exercice", options_exos)
+            # INTERFACE RENFORCEMENT & FORCE SPÉCIFIQUE
+            st.info("🏋️‍♂️ Séance de Renforcement Musculaire / PPG détectée.")
+            choix_exo = st.selectbox("Mouvement de PPG", options_exos)
             if choix_exo == "-- Nouvel exercice --":
-                exercice = st.text_input("📝 Nom du NOUVEL exercice (ex: Développé couché)")
+                exercice = st.text_input("📝 Nom du mouvement (ex: Back Squat, Fentes Bulgares, Soulevé de terre)")
             else:
                 exercice = choix_exo
 
             col_a, col_b, col_c = st.columns(3)
             with col_a:
-                series = st.number_input("Séries cibles", min_value=1, step=1, value=4)
+                series = st.number_input("Séries cibles", min_value=1, step=1, value=3)
             with col_b:
-                reps = st.text_input("Reps", value="10")
+                reps = st.text_input("Reps / Durée", value="8", help="Ex: 8 pour la force, ou 45s pour du gainage")
             with col_c:
-                poids = st.number_input("Poids cible (kg)", min_value=0.0, step=0.5, value=0.0)
+                poids = st.number_input("Charge cible (kg)", min_value=0.0, step=0.5, value=0.0, help="Laisse à 0 si c'est au poids du corps")
 
         # BOUTON DE SAUVEGARDE
         if st.button("➕ Ajouter au Programme (Google Sheets)", type="primary"):
@@ -1154,8 +1157,13 @@ elif page == "Coach IA (Analyse)":
             ia_energie = st.slider("Énergie (1-10)", 1, 10, energie_defaut)
         with col_ia2:
             ia_courbatures = st.text_input("Douleurs / Courbatures ?", value=courbatures_defaut)
-            ia_objectif = st.selectbox("Type de séance voulu", ["Hyrox / WOD", "Renforcement Haut du corps", "Renforcement Bas du corps", "Cardio LISS (Zone 2)", "Récupération Active"])
-        
+            ia_objectif = st.selectbox("Type de séance voulu", [
+    "Cardio LISS (Zone 2 - Endurance Fondamentale)", 
+    "Fractionné / Seuil (Zone 4 - Interval Training)", 
+    "Renforcement Spécifique / PPG (Force & Stabilité)", 
+    "Récupération Active (Zone 1 - Vélo fluide ou Mobilité)"
+])
+            
         # BOUTON DE GÉNÉRATION
         if st.button("✨ Générer ma séance sur mesure", type="primary"):
             with st.spinner("Le coach réfléchit à ton programme... 🧠"):
