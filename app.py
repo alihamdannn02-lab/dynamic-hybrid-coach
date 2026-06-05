@@ -289,15 +289,15 @@ if st.sidebar.button("🗑️ Annuler ma dernière séance"):
     else:
         st.sidebar.error(message)
         
-# --- V2 AVEC API CONNECTION MONTRE ---
-st.divider()
-    st.markdown("### ⌚ Connectivité")
-    if st.sidebar.button("🔄 Synchroniser Garmin / Strava"):
-        with st.spinner("Recherche de nouvelles activités via l'API Webhook..."):
-            import time
-            time.sleep(2) # Simule l'appel réseau
-        st.sidebar.success("✅ 1 nouvelle activité synchronisée (Vélo : 45km)")
-        st.sidebar.caption("Les métriques (TSS, Watts, D+) ont été mises à jour.")
+# --- CONNECTIVITÉ (API STRAVA/GARMIN) ---
+st.sidebar.divider()
+st.sidebar.markdown("### ⌚ Connectivité")
+if st.sidebar.button("🔄 Synchroniser Garmin / Strava"):
+    with st.spinner("Recherche de nouvelles activités via l'API Webhook..."):
+        import time
+        time.sleep(2) # Simule l'appel réseau
+    st.sidebar.success("✅ 1 nouvelle activité synchronisée (Vélo : 45km)")
+    st.sidebar.caption("Les métriques (TSS, Watts, D+) ont été mises à jour.")
         
 # ---- PAGE 1 : CHECK-IN MATIN ----
 if page == "Morning Readiness":
