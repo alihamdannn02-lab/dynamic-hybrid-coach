@@ -1145,25 +1145,51 @@ elif page == "Coach IA (Analyse)":
     with tab2:
         st.subheader("🧠 Générer une séance avec l'IA")
         
-        # Le contrôle de la destination est maintenant explicite et propre à l'IA !
+        # Le contrôle de la destination explicite !
         st.markdown("##### 📍 Où veux-tu planifier cette séance ?")
         col_dest1, col_dest2 = st.columns(2)
         with col_dest1:
-            ia_semaine = st.number_input("Pour la Semaine n°", min_value=1, step=1, value=semaine_actuelle, key="ia_sem")
+            try:
+                semaine_act_ia = int(load_programme()["Semaine"].max())
+            except:
+                semaine_act_ia = 1
+            ia_semaine = st.number_input("Pour la Semaine n°", min_value=1, step=1, value=semaine_act_ia, key="ia_sem")
         with col_dest2:
             ia_jour = st.selectbox("Le jour", ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"], key="ia_jour")
         st.divider()
+        
+        # INITIALISATION DE LA MÉMOIRE (SESSION STATE)
+        if "seance_ia_generee" not in st.session_state:
+            st.session_state.seance_ia_generee = None
+            
+        # --- BLOC RÉCUPÉRATION DU CHECK-IN (Celui qui avait disparu !) ---
+        df_checkin = load_historique_checkin()
+        sommeil_defaut, energie_defaut, courbatures_defaut = 7.0, 7, "Aucune"
+        if not df_checkin.empty:
+            dernier_checkin = df_checkin.iloc[-1]
+            try:
+                # On nettoie la virgule pour le sommeil
+                brut_sommeil = str(dernier_checkin.get("Heures_Sommeil", "7.0")).replace(',', '.')
+                sommeil_defaut = float(brut_sommeil)
+                sommeil_defaut = min(sommeil_defaut, 12.0) # Sécurité Streamlit max 12
+                
+                energie_defaut = int(dernier_checkin.get("Niveau_Energie", 7))
+                energie_defaut = min(energie_defaut, 10)
+                
+                courbatures_defaut = str(dernier_checkin.get("Muscles_Douloureux", "Aucune"))
+            except Exception as e: 
+                pass
+        # -----------------------------------------------------------------
 
-        # ... (Gardez le code qui lit le dernier check-in pour l'IA ici) ...
-
-        st.info("💡 Constantes basées sur ton dernier Check-in.")
+        st.info("💡 Les données ci-dessous sont basées sur ton dernier Check-in. Modifie-les si besoin.")
+        
         col_ia1, col_ia2 = st.columns(2)
         with col_ia1:
             ia_sommeil = st.number_input("Sommeil (h)", min_value=0.0, max_value=12.0, value=sommeil_defaut, step=0.5)
             ia_energie = st.slider("Énergie (1-10)", 1, 10, energie_defaut)
         with col_ia2:
             ia_courbatures = st.text_input("Douleurs / Courbatures ?", value=courbatures_defaut)
-            # VOCABULAIRE TRIATHLON / ÉLITE
+            # NOUVEAU VOCABULAIRE TRIATHLON / ÉLITE
             ia_objectif = st.selectbox("Type de séance voulu", [
                 "Course : Sortie Longue (Z2)", 
                 "Course : Fractionné / VMA",
@@ -1172,47 +1198,45 @@ elif page == "Coach IA (Analyse)":
                 "Natation : Technique & Aérobie",
                 "Trail : Renforcement Spécifique (D+)"
             ])
-            
+        
         # BOUTON DE GÉNÉRATION
         if st.button("✨ Générer ma séance sur mesure", type="primary"):
-            with st.spinner("Le coach réfléchit à ton programme... 🧠"):
+            with st.spinner("Le coach analyse tes données... 🧠"):
                 success, resultat = generer_seance_ia(ia_energie, ia_sommeil, ia_courbatures, ia_objectif)
                 if success:
-                    # On stocke le résultat dans la mémoire de la page !
                     st.session_state.seance_ia_generee = resultat
-                    st.rerun() # On rafraîchit pour afficher la suite
+                    st.rerun() 
                 else:
                     st.error(resultat)
         
-        # --- L'IA A FAIT UNE PROPOSITION : ON AFFICHE LES BOUTONS ---
+        # --- L'IA A FAIT UNE PROPOSITION : ON AFFICHE LES RÉSULTATS ---
         if st.session_state.seance_ia_generee:
             seance = st.session_state.seance_ia_generee
             st.divider()
             st.markdown(f"### 🎯 {seance.get('titre', 'Séance IA')}")
             st.info(f"🗣️ **Coach :** {seance.get('message', '')}")
             
-            # On transforme le JSON des exercices en tableau Pandas
             df_exos = pd.DataFrame(seance.get("exercices", []))
             if not df_exos.empty:
                 df_exos.columns = ["Exercice", "Séries", "Reps", "Poids (kg)"]
                 st.dataframe(df_exos, use_container_width=True, hide_index=True)
             
-            st.write(f"**Cette séance sera ajoutée à ton programme le {jour} de la Semaine {semaine}.**")
+            st.write(f"**Cette séance sera ajoutée à ton programme le {ia_jour} de la Semaine {ia_semaine}.**")
             col_action1, col_action2 = st.columns(2)
             
             with col_action1:
-                if st.button("✅ L'accepter et l'ajouter"):
+                if st.button("✅ L'accepter et l'ajouter au calendrier"):
                     with st.spinner("Sauvegarde en cours..."):
-                        # ON PASSE LES DEUX VARIABLES ICI
-                        if sauvegarder_seance_ia_programme(seance.get('titre', 'Séance IA'), df_exos, semaine, jour):
-                            st.success(f"✅ Séance ajoutée au {jour} de la Semaine {semaine} !")
+                        # ON UTILISE ia_semaine et ia_jour ICI !
+                        if sauvegarder_seance_ia_programme(seance.get('titre', 'Séance IA'), df_exos, ia_semaine, ia_jour):
+                            st.success(f"✅ Séance ajoutée au {ia_jour} de la Semaine {ia_semaine} !")
                             st.session_state.seance_ia_generee = None 
-                            st.cache_data.clear() 
+                            load_programme.clear() 
                             st.balloons()
                         else:
                             st.error("Erreur lors de la sauvegarde.")
                             
             with col_action2:
                 if st.button("🔄 Non, propose-moi autre chose"):
-                    st.session_state.seance_ia_generee = None # On vide la mémoire
-                    st.rerun() # Rafraîchissement automatique
+                    st.session_state.seance_ia_generee = None
+                    st.rerun()
