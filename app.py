@@ -286,9 +286,8 @@ if st.sidebar.button("🔄 Synchroniser API"):
 st.sidebar.divider()
 st.sidebar.markdown("### 👨‍💻 À propos")
 st.sidebar.info(
-    "POC développé par **[TON NOM ICI]** pour le cas pratique **Enduraw**.\n\n"
-    "[🔗 Mon profil LinkedIn](https://www.linkedin.com/)\n\n"
-    "[🐙 Mon Portfolio GitHub](https://github.com/)"
+    "POC développé par **Ali HAMDAN** pour le cas pratique **Enduraw**.\n\n"
+    "[🔗 Mon profil LinkedIn](https://www.linkedin.com/in/alihamdan2002/)\n\n"
 )
         
 # ==============================================================================
