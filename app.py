@@ -818,17 +818,23 @@ elif page == "Mes Insights (Data)":
         df_realise['Session_RPE'] = pd.to_numeric(df_realise.iloc[:, 9], errors='coerce').fillna(0)
         df_realise['Duree_Cardio'] = pd.to_numeric(df_realise.iloc[:, 11], errors='coerce').fillna(0)
         
-        # ---> NOUVEAU : ON SÉCURISE ET ON NETTOIE LA COLONNE SPORT <---
+        # ---> NOUVEAU : ON LIS LA COLONNE DÉNIVELÉ (Colonne 18 dans Sheets) <---
+        try:
+            df_realise['Denivele_Total'] = pd.to_numeric(df_realise.iloc[:, 18], errors='coerce').fillna(0)
+        except:
+            df_realise['Denivele_Total'] = 0
+
+        # On sécurise et on nettoie la colonne Sport
         if 'Sport_Discipline' not in df_realise.columns:
             df_realise['Sport_Discipline'] = 'Autre'
-        # On remplace les cases vides par "Renforcement / PPG"
         df_realise['Sport_Discipline'] = df_realise['Sport_Discipline'].replace(r'^\s*$', 'Renforcement / PPG', regex=True).fillna('Renforcement / PPG')
 
-        # ---> ON AJOUTE LE SPORT AU REGROUPEMENT POUR NE PAS LE PERDRE <---
+        # ---> LE REGROUPEMENT MODIFIÉ (On ajoute Denivele_Total à l'entonnoir !) <---
         seances = df_realise.groupby(['Date', 'Semaine', 'Sport_Discipline']).agg(
             Session_RPE=('Session_RPE', 'max'),
             Duree_Cardio=('Duree_Cardio', 'max'),
-            Duree_Seance=('Duree_Cardio', lambda x: 60 if x.max() == 0 else x.max())
+            Duree_Seance=('Duree_Cardio', lambda x: 60 if x.max() == 0 else x.max()),
+            Denivele_Total=('Denivele_Total', 'sum')  # On dit à Pandas de faire la somme du D+
         ).reset_index()
         
         # CALCUL DE BORG (sRPE : RPE x Durée)
