@@ -429,6 +429,39 @@ if page == "Morning Readiness":
 elif page == "Ma Séance du Jour":
     st.header("Ma Séance du Jour")
 
+    # --- SECTION : VOLUME PAR DISCIPLINE (Triathlon / Hybride) ---
+        st.subheader("🏊‍♂️🚴‍♂️🏃‍♂️ Volume par Discipline")
+        
+        # On calcule le temps total passé dans chaque sport cette semaine
+        volume_par_sport = seances_semaine_actuelle.groupby('Sport')['Duree_Seance'].sum().reset_index()
+        
+        if not volume_par_sport.empty and volume_par_sport['Duree_Seance'].sum() > 0:
+            # On convertit les minutes en heures pour un affichage plus lisible
+            volume_par_sport['Heures'] = volume_par_sport['Duree_Seance'] / 60
+            
+            fig_sports = px.bar(
+                volume_par_sport, 
+                x='Heures', y='Sport', orientation='h',
+                text=volume_par_sport['Heures'].apply(lambda x: f"{x:.1f}h"),
+                color='Sport',
+                color_discrete_sequence=['#00F0FF', '#FF4B4B', '#00FF00', '#FFD700', '#9D00FF']
+            )
+            
+            fig_sports.update_layout(
+                template="plotly_dark",
+                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                height=300,
+                margin=dict(l=0, r=0, t=10, b=0),
+                showlegend=False,
+                xaxis_title="Heures d'entraînement",
+                yaxis_title=""
+            )
+            fig_sports.update_traces(textposition='outside')
+            st.plotly_chart(fig_sports, use_container_width=True)
+            st.divider()
+        else:
+            st.caption("Aucun volume enregistré cette semaine.")
+            
     # --- INJECTION DE CSS POUR LE DESIGN DES ZONES CARDIAQUES ---
     st.markdown("""
         <style>
@@ -808,7 +841,7 @@ elif page == "Mes Insights (Data)":
     if df_realise.empty:
         st.info("Aucune donnée d'entraînement enregistrée pour le moment.")
     else:
-        # --- PRÉPARATION DES DONNÉES (Basée sur tes indices de colonnes exacts) ---
+        # --- PRÉPARATION DES DONNÉES ---
         df_realise['Date'] = pd.to_datetime(df_realise.iloc[:, 0])
         df_realise['Semaine'] = pd.to_numeric(df_realise.iloc[:, 1], errors='coerce')
         df_realise['Poids'] = pd.to_numeric(df_realise.iloc[:, 5], errors='coerce').fillna(0)
@@ -816,12 +849,20 @@ elif page == "Mes Insights (Data)":
         df_realise['Session_RPE'] = pd.to_numeric(df_realise.iloc[:, 9], errors='coerce').fillna(0)
         df_realise['Duree_Cardio'] = pd.to_numeric(df_realise.iloc[:, 11], errors='coerce').fillna(0)
         
-        # Grouper par Date et Semaine pour avoir 1 ligne = 1 séance
-        seances = df_realise.groupby(['Date', 'Semaine']).agg(
+        # ---> LECTURE DES NOUVELLES DONNÉES ÉLITE (Sport, D+) <---
+        try:
+            df_realise['Sport'] = df_realise.iloc[:, 17].astype(str)
+            df_realise['Denivele'] = pd.to_numeric(df_realise.iloc[:, 18], errors='coerce').fillna(0)
+        except:
+            df_realise['Sport'] = "Cross-Training"
+            df_realise['Denivele'] = 0
+            
+        # Grouper par Date, Semaine et Sport pour avoir 1 ligne = 1 séance
+        seances = df_realise.groupby(['Date', 'Semaine', 'Sport']).agg(
             Session_RPE=('Session_RPE', 'max'),
             Duree_Cardio=('Duree_Cardio', 'max'),
-            # Si Duree_Cardio est 0, c'est de la muscu : on estime à 60 min par défaut pour le calcul
-            Duree_Seance=('Duree_Cardio', lambda x: 60 if x.max() == 0 else x.max())
+            Denivele_Total=('Denivele', 'max'),
+            Duree_Seance=('Duree_Cardio', lambda x: 45 if x.max() == 0 else x.max())
         ).reset_index()
         
         # CALCUL DE BORG (sRPE : RPE x Durée)
@@ -829,36 +870,39 @@ elif page == "Mes Insights (Data)":
         
         semaine_actuelle = int(seances['Semaine'].max())
         seances_semaine_actuelle = seances[seances['Semaine'] == semaine_actuelle]
-
-        # --- SECTION 1 : LES VRAIS KPI ---
+        
+        # --- SECTION 1 : LES VRAIS KPI (Triathlon / Trail Ready) ---
         st.subheader("📌 Vue d'ensemble (Semaine actuelle)")
-        col1, col2, col3, col4 = st.columns(4)
+        col1, col2, col3, col4, col5 = st.columns(5)
         
         # 1. Nbr de séances
         nb_seances_tot = len(seances)
         nb_seances_sem = len(seances_semaine_actuelle)
-        col1.metric("Séances (Semaine)", f"{nb_seances_sem}", f"Total historique: {nb_seances_tot}")
+        col1.metric("Séances (Sem)", f"{nb_seances_sem}")
         
         # 2. Temps passé
-        temps_total_heures = seances['Duree_Seance'].sum() / 60
         temps_semaine_heures = seances_semaine_actuelle['Duree_Seance'].sum() / 60
-        col2.metric("Temps d'effort (Semaine)", f"{temps_semaine_heures:.1f} h", f"Total: {temps_total_heures:.1f} h")
+        col2.metric("Volume (Sem)", f"{temps_semaine_heures:.1f} h")
         
-        # 3. RPE Moyen
+        # 3. Dénivelé cumulé (Nouveau !)
+        dplus_semaine = seances_semaine_actuelle['Denivele_Total'].sum()
+        col3.metric("Dénivelé (D+)", f"{int(dplus_semaine)} m")
+        
+        # 4. RPE Moyen
         rpe_moyen_sem = seances_semaine_actuelle['Session_RPE'].mean() if not seances_semaine_actuelle.empty else 0
-        col3.metric("RPE Moyen (Semaine)", f"{rpe_moyen_sem:.1f} / 10")
+        col4.metric("RPE Moyen", f"{rpe_moyen_sem:.1f} / 10")
         
-        # 4. Sommeil Moyen
+        # 5. Sommeil Moyen
         sommeil_moyen = 0
         douleurs_recentes = "Aucune"
         if not df_checkin.empty:
             df_checkin['Date'] = pd.to_datetime(df_checkin.iloc[:, 0])
             df_checkin['Sommeil'] = pd.to_numeric(df_checkin.iloc[:, 1], errors='coerce')
-            sommeil_moyen = df_checkin.tail(7)['Sommeil'].mean() # Moyenne sur 7 jours
-            douleurs_recentes = df_checkin.iloc[-1, 5] # Colonne des muscles douloureux du dernier check-in
-            col4.metric("Sommeil Moyen (7j)", f"{sommeil_moyen:.1f} h")
+            sommeil_moyen = df_checkin.tail(7)['Sommeil'].mean()
+            douleurs_recentes = df_checkin.iloc[-1, 5] 
+            col5.metric("Sommeil (7j)", f"{sommeil_moyen:.1f} h")
         else:
-            col4.metric("Sommeil Moyen", "N/A")
+            col5.metric("Sommeil", "N/A")
 
         st.divider()
 
