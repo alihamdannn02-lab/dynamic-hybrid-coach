@@ -429,38 +429,7 @@ if page == "Morning Readiness":
 elif page == "Ma Séance du Jour":
     st.header("Ma Séance du Jour")
 
-    # --- SECTION : VOLUME PAR DISCIPLINE (Triathlon / Hybride) ---
-        st.subheader("🏊‍♂️🚴‍♂️🏃‍♂️ Volume par Discipline")
-        
-        # On calcule le temps total passé dans chaque sport cette semaine
-        volume_par_sport = seances_semaine_actuelle.groupby('Sport')['Duree_Seance'].sum().reset_index()
-        
-        if not volume_par_sport.empty and volume_par_sport['Duree_Seance'].sum() > 0:
-            # On convertit les minutes en heures pour un affichage plus lisible
-            volume_par_sport['Heures'] = volume_par_sport['Duree_Seance'] / 60
-            
-            fig_sports = px.bar(
-                volume_par_sport, 
-                x='Heures', y='Sport', orientation='h',
-                text=volume_par_sport['Heures'].apply(lambda x: f"{x:.1f}h"),
-                color='Sport',
-                color_discrete_sequence=['#00F0FF', '#FF4B4B', '#00FF00', '#FFD700', '#9D00FF']
-            )
-            
-            fig_sports.update_layout(
-                template="plotly_dark",
-                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                height=300,
-                margin=dict(l=0, r=0, t=10, b=0),
-                showlegend=False,
-                xaxis_title="Heures d'entraînement",
-                yaxis_title=""
-            )
-            fig_sports.update_traces(textposition='outside')
-            st.plotly_chart(fig_sports, use_container_width=True)
-            st.divider()
-        else:
-            st.caption("Aucun volume enregistré cette semaine.")
+    
             
     # --- INJECTION DE CSS POUR LE DESIGN DES ZONES CARDIAQUES ---
     st.markdown("""
@@ -903,9 +872,39 @@ elif page == "Mes Insights (Data)":
             col5.metric("Sommeil (7j)", f"{sommeil_moyen:.1f} h")
         else:
             col5.metric("Sommeil", "N/A")
-
+# --- SECTION : VOLUME PAR DISCIPLINE (Triathlon / Hybride) ---
+        st.subheader("🏊‍♂️ 🚴‍♂️ 🏃‍♂️ Volume par Discipline")
+        
+        # On s'assure que la colonne Sport_Discipline existe bien
+        if 'Sport_Discipline' in seances_semaine_actuelle.columns:
+            volume_par_sport = seances_semaine_actuelle.groupby('Sport_Discipline')['Duree_Seance'].sum().reset_index()
+            
+            if not volume_par_sport.empty and volume_par_sport['Duree_Seance'].sum() > 0:
+                volume_par_sport['Heures'] = volume_par_sport['Duree_Seance'] / 60
+                
+                fig_sports = px.bar(
+                    volume_par_sport,
+                    x='Heures', y='Sport_Discipline', orientation='h',
+                    text=volume_par_sport['Heures'].apply(lambda x: f"{x:.1f}h"),
+                    color='Sport_Discipline',
+                    color_discrete_sequence=['#00F0FF', '#FF4B4B', '#00FF00', '#FFD700', '#9D00FF']
+                )
+                
+                fig_sports.update_layout(
+                    template="plotly_dark",
+                    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                    height=250, margin=dict(l=0, r=0, t=10, b=0),
+                    showlegend=False, xaxis_title="Heures d'entraînement", yaxis_title=""
+                )
+                fig_sports.update_traces(textposition='outside')
+                st.plotly_chart(fig_sports, use_container_width=True)
+            else:
+                st.caption("Aucun volume enregistré cette semaine.")
+        else:
+            st.caption("La colonne Sport n'est pas encore synchronisée.")
+        
         st.divider()
-
+        
         # --- SECTION 2 : MODÉLISATION BANISTER (CTL / ATL / TSB) ---
         st.subheader("🧬 Modélisation de la Forme (Banister / TrainingPeaks)")
         st.caption("Évolution de ta Condition (Fitness), ta Fatigue, et ton État de Forme (TSB).")
