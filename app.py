@@ -275,12 +275,9 @@ if st.sidebar.button("🗑️ Annuler ma dernière séance"):
 # --- CONNECTIVITÉ (API STRAVA/GARMIN) ---
 st.sidebar.divider()
 st.sidebar.markdown("### ⌚ Connectivité")
-if st.sidebar.button("🔄 Synchroniser API"):
-    with st.spinner("Recherche de nouvelles activités via l'API Webhook..."):
-        import time
-        time.sleep(2) 
-    st.sidebar.success("✅ 1 nouvelle activité synchronisée (Vélo : 45km)")
-    st.sidebar.caption("Les métriques (TSS, Watts, D+) ont été mises à jour.")
+if st.sidebar.button("🔄 Synchroniser API Garmin/Strava"):
+    st.sidebar.info("🚀 **Feature V2**")
+    st.sidebar.caption("La synchronisation automatique avec les montres (Garmin, Coros, Apple) et Strava via webhook OAuth2 est prévue pour la version 2.0 du POC.")
 
 # --- SIGNATURE DU DÉVELOPPEUR (PERSONNALISATION ENTRETIEN) ---
 st.sidebar.divider()
@@ -919,7 +916,8 @@ elif page == "Coach IA (Analyse)":
         with st.container(border=True):
             st.markdown("#### 2️⃣ Ajouter un mouvement")
             type_seance_lower = str(type_seance).lower() if type_seance else ""
-            mots_cles_cardio = ["course", "run", "fractionné", "piste", "endurance", "z2", "aérobie", "seuil", "vo2"]
+            # ---> NOUVEAU VOCABULAIRE ÉLARGI <---
+            mots_cles_cardio = ["course", "run", "fractionné", "piste", "endurance", "z1", "z2", "z3", "z4", "z5", "aérobie", "seuil", "vo2", "pma", "vélo", "natation", "trail", "intervalles", "intervalle", "vma"]
             
             if any(mot in type_seance_lower for mot in mots_cles_cardio):
                 st.info("🏃‍♂️ Bloc métabolique / Cardio détecté.")
@@ -987,7 +985,10 @@ elif page == "Coach IA (Analyse)":
                 ia_objectif = st.selectbox("Type de séance voulu", [
                     "Course : Sortie Longue (Z2)", "Course : Fractionné / VMA",
                     "Vélo : PMA / Seuil", "Vélo : Endurance Fondamentale",
-                    "Natation : Technique & Aérobie", "Trail : Renforcement Spécifique (D+)"
+                    "Natation : Technique & Aérobie", "Trail : Renforcement Spécifique (D+)",
+                    "Renforcement : Force Maximale",
+                    "PPG : Core Stability & Prévention",
+                    "Cross-Training / Hyrox"
                 ])
         
         st.write("")
