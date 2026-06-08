@@ -298,18 +298,34 @@ if page == "Morning Readiness":
     
     if st.button("🪄 Remplir automatiquement", type="secondary"):
         with st.spinner("Analyse sémantique de tes constantes..."):
+            # 1. On donne des consignes plus intelligentes à l'IA
             prompt_nlp = f"""Extrais les données physiologiques de ce texte : "{texte_checkin}". 
             Renvoie STRICTEMENT un JSON avec ces clés : sommeil (float), fcr (int), vfc (int), energie (int de 1 à 10). 
-            Si une donnée manque, mets 0."""
+            Si une donnée manque ou est inconnue, utilise les moyennes standards : fcr=45, vfc=60, sommeil=7.5, energie=5."""
+            
             try:
                 reponse = modele_ia.generate_content(prompt_nlp)
                 data_ia = json.loads(reponse.text.replace('```json', '').replace('```', '').strip())
-                st.session_state['sommeil_auto'] = float(data_ia.get('sommeil', 7.5))
-                st.session_state['fcr_auto'] = int(data_ia.get('fcr', 45))
-                st.session_state['vfc_auto'] = int(data_ia.get('vfc', 60))
-                st.session_state['energie_auto'] = int(data_ia.get('energie', 7))
-                st.success("Curseurs ajustés via NLP ! Vérifie et valide en bas.")
-            except:
+                
+                # 2. SÉCURITÉ ANTI-CRASH : On force les valeurs à rester dans les limites de nos curseurs Streamlit
+                
+                val_sommeil = float(data_ia.get('sommeil', 7.5))
+                st.session_state['sommeil_auto'] = max(0.0, min(12.0, val_sommeil))
+                
+                val_fcr = int(data_ia.get('fcr', 45))
+                if val_fcr < 30: val_fcr = 45 # Sécurité absolue si l'IA renvoie 0
+                st.session_state['fcr_auto'] = max(30, min(100, val_fcr))
+                
+                val_vfc = int(data_ia.get('vfc', 60))
+                if val_vfc < 10: val_vfc = 60
+                st.session_state['vfc_auto'] = max(10, min(150, val_vfc))
+                
+                val_energie = int(data_ia.get('energie', 5))
+                if val_energie < 1: val_energie = 5
+                st.session_state['energie_auto'] = max(1, min(10, val_energie))
+                
+                st.success("✅ Curseurs ajustés intelligemment via NLP !")
+            except Exception as e:
                 st.error("L'IA n'a pas pu structurer tes constantes, utilise les curseurs manuels.")
                 
     st.header("⚡ Morning Readiness")
