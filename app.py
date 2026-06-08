@@ -834,16 +834,41 @@ elif page == "Mes Insights (Data)":
                 seances = seances.fillna(0)
                 
                 fig_banister = make_subplots(specs=[[{"secondary_y": True}]])
+                
+                # --- LES COURBES ---
                 fig_banister.add_trace(go.Scatter(x=seances['Date'], y=seances['Fitness_CTL'], name="Fitness (CTL)", mode='lines', line=dict(color='#1E90FF', width=2), fill='tozeroy', fillcolor='rgba(30, 144, 255, 0.2)'), secondary_y=False)
                 fig_banister.add_trace(go.Scatter(x=seances['Date'], y=seances['Fatigue_ATL'], name="Fatigue (ATL)", mode='lines', line=dict(color='#FF4B4B', width=2, dash='dot')), secondary_y=False)
                 fig_banister.add_trace(go.Scatter(x=seances['Date'], y=seances['Forme_TSB'], name="Forme (TSB)", mode='lines', line=dict(color='#FFD700', width=3)), secondary_y=True)
                 
-                fig_banister.add_hrect(y0=-10, y1=10, fillcolor="#00FF00", opacity=0.1, secondary_y=True, annotation_text="Pic de Forme")
-                fig_banister.add_hrect(y0=-30, y1=-10, fillcolor="#FFA500", opacity=0.1, secondary_y=True, annotation_text="Zone d'Entraînement")
-                fig_banister.add_hrect(y0=-100, y1=-30, fillcolor="#FF0000", opacity=0.1, secondary_y=True, annotation_text="Risque Surcharge")
+                # --- LES ZONES (SANS TEXTE SUPERPOSÉ BUGGÉ) ---
+                fig_banister.add_hrect(y0=-10, y1=10, fillcolor="#00FF00", opacity=0.1, secondary_y=True)
+                fig_banister.add_hrect(y0=-30, y1=-10, fillcolor="#FFA500", opacity=0.1, secondary_y=True)
+                fig_banister.add_hrect(y0=-200, y1=-30, fillcolor="#FF0000", opacity=0.1, secondary_y=True)
 
-                fig_banister.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", hovermode="x unified", legend=dict(orientation="h", y=1.1))
+                # --- LE DESIGN PREMIUM DES AXES ---
+                fig_banister.update_layout(
+                    template="plotly_dark", 
+                    paper_bgcolor="rgba(0,0,0,0)", 
+                    plot_bgcolor="rgba(0,0,0,0)", 
+                    hovermode="x unified", 
+                    legend=dict(orientation="h", y=1.15, x=0),
+                    margin=dict(l=0, r=0, t=30, b=0)
+                )
+                
+                # Ajout des Titres d'axes pour comprendre les chiffres
+                fig_banister.update_yaxes(title_text="Charge d'entraînement (CTL/ATL)", secondary_y=False, showgrid=False)
+                fig_banister.update_yaxes(title_text="Niveau de Forme (TSB)", secondary_y=True, showgrid=True, gridcolor='rgba(255,255,255,0.05)')
+                
                 st.plotly_chart(fig_banister, use_container_width=True)
+                
+                # --- LÉGENDE PROPRE SOUS LE GRAPHIQUE ---
+                st.markdown("""
+                <div style='display: flex; justify-content: space-around; font-size: 0.85em; color: gray; padding-bottom: 10px;'>
+                    <span>🟩 <b>Pic de Forme</b> (Frais et prêt)</span>
+                    <span>🟧 <b>Zone d'Entraînement</b> (Surcharge optimale)</span>
+                    <span>🟥 <b>Risque Surcharge</b> (Fatigue extrême)</span>
+                </div>
+                """, unsafe_allow_html=True)
                 
                 # PRÉDICTIONS
                 st.markdown("---")
@@ -863,8 +888,6 @@ elif page == "Mes Insights (Data)":
                     st.caption("Estimation de la régénération métabolique complète.")
         else:
             st.info("📊 Continue d'enregistrer des séances. Le modèle de Banister s'activera après quelques jours de données.")
-
-        st.divider()
 
         # --- SECTION 4 : SURCHARGE PROGRESSIVE ---
         st.subheader("🏋️‍♂️ Suivi de Préparation Physique (PPG)")
