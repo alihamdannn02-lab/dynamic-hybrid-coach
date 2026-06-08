@@ -249,6 +249,10 @@ st.divider()
 with st.sidebar:
     st.title("Enduraw Athlete")
     st.markdown("## ⚡ Profil & Suivi")
+    
+    # ---> AJOUT DE L'ÂGE DANS LE PROFIL <---
+    age = st.number_input("🎂 Âge de l'athlète", min_value=15, max_value=85, value=25, step=1)
+    
     st.divider()
     
     page = st.radio(
@@ -298,33 +302,40 @@ if page == "Morning Readiness":
     
     if st.button("🪄 Remplir automatiquement", type="secondary"):
         with st.spinner("Analyse sémantique de tes constantes..."):
-            # 1. On donne des consignes plus intelligentes à l'IA
+            
+            # --- ALGORITHME DE BASELINE BIOMÉTRIQUE SELON L'ÂGE ---
+            # La FCR moyenne d'un athlète reste assez stable (autour de 45-50)
+            fcr_moyen_age = 45 
+            
+            # La VFC diminue physiologiquement avec l'âge (Formule statistique de référence sportive)
+            vfc_moyen_age = max(30, int(80 - (age - 20) * 0.7)) 
+            
+            # On passe ce contexte dynamique à l'IA
             prompt_nlp = f"""Extrais les données physiologiques de ce texte : "{texte_checkin}". 
             Renvoie STRICTEMENT un JSON avec ces clés : sommeil (float), fcr (int), vfc (int), energie (int de 1 à 10). 
-            Si une donnée manque ou est inconnue, utilise les moyennes standards : fcr=45, vfc=60, sommeil=7.5, energie=5."""
+            Si une donnée manque ou est inconnue, utilise obligatoirement ces moyennes par défaut adaptées au profil de l'athlète ({age} ans) : sommeil=7.5, fcr={fcr_moyen_age}, vfc={vfc_moyen_age}, energie=5."""
             
             try:
                 reponse = modele_ia.generate_content(prompt_nlp)
                 data_ia = json.loads(reponse.text.replace('```json', '').replace('```', '').strip())
                 
-                # 2. SÉCURITÉ ANTI-CRASH : On force les valeurs à rester dans les limites de nos curseurs Streamlit
-                
+                # --- SÉCURITÉ ANTI-CRASH AVEC BASES DYNAMIQUES ---
                 val_sommeil = float(data_ia.get('sommeil', 7.5))
                 st.session_state['sommeil_auto'] = max(0.0, min(12.0, val_sommeil))
                 
-                val_fcr = int(data_ia.get('fcr', 45))
-                if val_fcr < 30: val_fcr = 45 # Sécurité absolue si l'IA renvoie 0
+                val_fcr = int(data_ia.get('fcr', fcr_moyen_age))
+                if val_fcr < 30: val_fcr = fcr_moyen_age 
                 st.session_state['fcr_auto'] = max(30, min(100, val_fcr))
                 
-                val_vfc = int(data_ia.get('vfc', 60))
-                if val_vfc < 10: val_vfc = 60
+                val_vfc = int(data_ia.get('vfc', vfc_moyen_age))
+                if val_vfc < 10: val_vfc = vfc_moyen_age
                 st.session_state['vfc_auto'] = max(10, min(150, val_vfc))
                 
                 val_energie = int(data_ia.get('energie', 5))
                 if val_energie < 1: val_energie = 5
                 st.session_state['energie_auto'] = max(1, min(10, val_energie))
                 
-                st.success("✅ Curseurs ajustés intelligemment via NLP !")
+                st.success(f"✅ Curseurs ajustés par rapport à ton profil ({age} ans) !")
             except Exception as e:
                 st.error("L'IA n'a pas pu structurer tes constantes, utilise les curseurs manuels.")
                 
