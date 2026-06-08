@@ -864,9 +864,9 @@ elif page == "Mes Insights (Data)":
                 # --- LÉGENDE PROPRE SOUS LE GRAPHIQUE ---
                 st.markdown("""
                 <div style='display: flex; justify-content: space-around; font-size: 0.85em; color: gray; padding-bottom: 10px;'>
-                    fig_banister.add_hrect(y0=-10, y1=10, fillcolor="#00FF00", opacity=0.1, secondary_y=True)
-                    fig_banister.add_hrect(y0=-30, y1=-10, fillcolor="#FFA500", opacity=0.1, secondary_y=True)
-                    fig_banister.add_hrect(y0=-200, y1=-30, fillcolor="#FF0000", opacity=0.1, secondary_y=True)
+                    <span>🟩 <b>Pic de Forme</b> (Frais et prêt)</span>
+                    <span>🟧 <b>Zone d'Entraînement</b> (Surcharge optimale)</span>
+                    <span>🟥 <b>Risque Surcharge</b> (Fatigue extrême)</span>
                 </div>
                 """, unsafe_allow_html=True)
                 
