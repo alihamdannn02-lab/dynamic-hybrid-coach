@@ -658,284 +658,84 @@ elif page == "Ma Séance du Jour":
     except Exception as e:
         st.error(f"Erreur d'accès au calendrier de l'athlète : {e}")
         
-# ==============================================================================
-# PAGE 3 : MES INSIGHTS (DATA)
-# ==============================================================================
+#----PAGE 3 : MES STATS----      
 elif page == "Mes Insights (Data)":
     st.header("📊 Cockpit Performance & Readiness")
     
     df_realise = load_historique_realise()
     df_checkin = load_historique_checkin()
 
+    # --- 1. READINESS SCORE ---
     if not df_checkin.empty:
         dernier_checkin = df_checkin.iloc[-1]
         try:
-            brut_sommeil = str(dernier_checkin.iloc[1]).replace(',', '.')
-            val_sommeil = float(brut_sommeil)
+            val_sommeil = float(str(dernier_checkin.iloc[1]).replace(',', '.'))
             val_vfc = int(dernier_checkin.iloc[2])
             val_fcr = int(dernier_checkin.iloc[3]) 
             val_energie = int(dernier_checkin.iloc[4])
-            
             score = calculer_readiness(val_sommeil, val_vfc, val_fcr, val_energie)
             
-            fig_gauge = go.Figure(go.Indicator(
-                mode = "gauge+number", value = score,
-                number = {'suffix': "%", 'font': {'size': 50, 'color': "white"}},
-                domain = {'x': [0, 1], 'y': [0, 1]},
-                title = {'text': "Readiness Score Global", 'font': {'size': 20, 'color': 'gray'}},
-                gauge = {
-                    'axis': {'range': [None, 100], 'tickwidth': 1, 'tickcolor': "white"},
-                    'bar': {'color': "white", 'thickness': 0.2},
-                    'bgcolor': "rgba(0,0,0,0)", 'borderwidth': 0,
-                    'steps': [
-                        {'range': [0, 50], 'color': "rgba(255, 75, 75, 0.4)"}, 
-                        {'range': [50, 75], 'color': "rgba(255, 215, 0, 0.4)"}, 
-                        {'range': [75, 100], 'color': "rgba(88, 214, 141, 0.4)"} 
-                    ],
-                }
-            ))
-            fig_gauge.update_layout(paper_bgcolor="rgba(0,0,0,0)", height=350, margin=dict(t=50, b=0, l=0, r=0))
-            
             with st.container(border=True):
-                col_gauge, col_texte = st.columns([1, 1])
-                with col_gauge:
-                    st.plotly_chart(fig_gauge, use_container_width=True)
-                with col_texte:
-                    st.markdown("<br><br>", unsafe_allow_html=True)
-                    if score >= 75: st.success("🟢 **Feu vert !** Tes constantes sont excellentes.")
-                    elif score >= 50: st.warning("🟡 **Attention !** Récupération moyenne. Privilégie une séance Z2.")
-                    else: st.error("🔴 **Alerte Fatigue !** Tes constantes sont dans le rouge. Repos conseillé.")
-        except Exception as e:
-            st.error(f"Erreur technique détaillée : {e}")
+                col_g, col_t = st.columns([1, 1])
+                col_g.metric("Readiness Score", f"{score}%")
+                if score >= 75: col_t.success("🟢 Feu vert ! Très bonne récup.")
+                elif score >= 50: col_t.warning("🟡 Attention, récup moyenne.")
+                else: col_t.error("🔴 Alerte fatigue !")
+        except: pass
 
     st.divider()
 
     if df_realise.empty:
-        st.info("Aucune donnée d'entraînement enregistrée pour le moment.")
+        st.info("Aucune donnée.")
     else:
         # --- PRÉPARATION DES DONNÉES ---
         df_realise['Date'] = pd.to_datetime(df_realise.iloc[:, 0])
         df_realise['Semaine'] = pd.to_numeric(df_realise.iloc[:, 1], errors='coerce')
-        df_realise['Poids'] = pd.to_numeric(df_realise.iloc[:, 5], errors='coerce').fillna(0)
-        df_realise['Reps'] = pd.to_numeric(df_realise.iloc[:, 6], errors='coerce').fillna(0)
         df_realise['Session_RPE'] = pd.to_numeric(df_realise.iloc[:, 9], errors='coerce').fillna(0)
-        df_realise['Duree_Cardio'] = pd.to_numeric(df_realise.iloc[:, 11], errors='coerce').fillna(0)
+        df_realise['Duree_Seance'] = pd.to_numeric(df_realise.iloc[:, 11], errors='coerce').fillna(60)
         
         try: df_realise['Denivele_Total'] = pd.to_numeric(df_realise.iloc[:, 18], errors='coerce').fillna(0)
         except: df_realise['Denivele_Total'] = 0
-
-        if 'Sport_Discipline' not in df_realise.columns: df_realise['Sport_Discipline'] = 'Autre'
-        df_realise['Sport_Discipline'] = df_realise['Sport_Discipline'].replace(r'^\s*$', 'Renforcement / PPG', regex=True).fillna('Renforcement / PPG')
+        
+        df_realise['Sport_Discipline'] = df_realise.iloc[:, 17].fillna('Renforcement / PPG') if df_realise.shape[1] > 17 else 'Renforcement / PPG'
 
         seances = df_realise.groupby(['Date', 'Semaine', 'Sport_Discipline']).agg(
             Session_RPE=('Session_RPE', 'max'),
-            Duree_Cardio=('Duree_Cardio', 'max'),
-            Duree_Seance=('Duree_Cardio', lambda x: 60 if x.max() == 0 else x.max()),
-            Denivele_Total=('Denivele_Total', 'sum') 
+            Duree_Seance=('Duree_Seance', 'max'),
+            Denivele_Total=('Denivele_Total', 'sum')
         ).reset_index()
         
         seances['Charge_Borg'] = seances['Session_RPE'] * seances['Duree_Seance']
-        semaine_actuelle = int(seances['Semaine'].max())
-        seances_semaine_actuelle = seances[seances['Semaine'] == semaine_actuelle]
+        seances_semaine_actuelle = seances[seances['Semaine'] == int(seances['Semaine'].max())]
         
-        # --- SECTION 1 : KPI ---
-        st.subheader("📌 Vue d'ensemble (Semaine actuelle)")
-        col1, col2, col3, col4, col5 = st.columns(5)
-        
-        col1.metric("Séances", f"{len(seances_semaine_actuelle)}")
-        col2.metric("Volume", f"{(seances_semaine_actuelle['Duree_Seance'].sum() / 60):.1f} h")
-        col3.metric("Dénivelé (D+)", f"{int(seances_semaine_actuelle['Denivele_Total'].sum())} m")
-        col4.metric("RPE Moyen", f"{(seances_semaine_actuelle['Session_RPE'].mean() if not seances_semaine_actuelle.empty else 0):.1f} / 10")
-        
-        if not df_checkin.empty:
-            df_checkin['Date'] = pd.to_datetime(df_checkin.iloc[:, 0])
-            df_checkin['Sommeil'] = pd.to_numeric(df_checkin.iloc[:, 1], errors='coerce')
-            col5.metric("Sommeil (7j)", f"{(df_checkin.tail(7)['Sommeil'].mean()):.1f} h")
-        else: col5.metric("Sommeil", "N/A")
-
+        # --- KPI ---
+        st.subheader("📌 Vue d'ensemble")
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Volume (h)", f"{(seances_semaine_actuelle['Duree_Seance'].sum()/60):.1f}")
+        c2.metric("Dénivelé (m)", f"{int(seances_semaine_actuelle['Denivele_Total'].sum())}")
+        c3.metric("Séances", f"{len(seances_semaine_actuelle)}")
         st.divider()
 
-        # --- SECTION : VOLUME PAR DISCIPLINE (Triathlon / Hybride) ---
-        st.subheader("🏊‍♂️ 🚴‍♂️ 🏃‍♂️ Volume par Discipline (Semaine Actuelle)")
+        # --- BANISTER (Propre et SANS texte buggé) ---
+        seances = seances.sort_values(by='Date')
+        seances['TSS'] = seances['Charge_Borg'] * 1.5
+        seances['Fitness_CTL'] = seances['TSS'].ewm(span=42).mean()
+        seances['Fatigue_ATL'] = seances['TSS'].ewm(span=7).mean()
+        seances['Forme_TSB'] = seances['Fitness_CTL'].shift(1) - seances['Fatigue_ATL'].shift(1)
         
-        # On s'assure que la colonne Sport_Discipline existe bien
-        if 'Sport_Discipline' in seances_semaine_actuelle.columns:
-            # Groupement propre par Sport et Somme des Heures
-            volume_par_sport = seances_semaine_actuelle.groupby('Sport_Discipline')['Duree_Seance'].sum().reset_index()
-            
-            if not volume_par_sport.empty and volume_par_sport['Duree_Seance'].sum() > 0:
-                # Conversion Minutes -> Heures pour l'affichage
-                volume_par_sport['Heures'] = volume_par_sport['Duree_Seance'] / 60
-                
-                # --- DESIGN AMÉLIORÉ PLOTLY ---
-                fig_sports = px.bar(
-                    volume_par_sport,
-                    x='Heures',
-                    y='Sport_Discipline',
-                    orientation='h',
-                    # Affiche le texte (ex: 12.5h) à l'extérieur de la barre
-                    text=volume_par_sport['Heures'].apply(lambda x: f"{x:.1f}h"),
-                    color='Sport_Discipline', # Colore chaque sport différemment
-                    # Palette de couleurs "Élite" cohérente avec le Donut FC
-                    color_discrete_sequence=['#00F0FF', '#FF4B4B', '#00FF00', '#FFD700', '#9D00FF']
-                )
-                
-                fig_sports.update_layout(
-                    template="plotly_dark", # Fond noir
-                    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                    height=350, # Plus de hauteur pour les légendes
-                    margin=dict(l=0, r=10, t=10, b=10),
-                    
-                    # --- ACTIVATION ET DESIGN DE LA LÉGENDE ---
-                    showlegend=True,
-                    legend=dict(
-                        title=dict(text="Disciplines", font=dict(color='gray')),
-                        orientation="h", # Horizontale
-                        yanchor="bottom",
-                        y=1.02, # Positionnée juste au-dessus du graphique
-                        xanchor="right",
-                        x=1,
-                        font=dict(size=11, color='white')
-                    ),
-
-                    # --- AJOUT DES TITRES D'AXES ---
-                    xaxis=dict(
-                        title=dict(text="Volume d'entraînement (Heures)", font=dict(color='gray')),
-                        showgrid=True,
-                        gridcolor='rgba(255,255,255,0.05)' # Grille très subtile
-                    ),
-                    yaxis=dict(
-                        title=dict(text="Discipline", font=dict(color='gray')),
-                        showgrid=False
-                    )
-                )
-
-                # --- SUPPRESSION DE L'ARTEFACT (Colorbar) ---
-                fig_sports.update_coloraxes(showscale=False)
-                
-                # Style du texte sur les barres (Poids & Position)
-                fig_sports.update_traces(
-                    textposition='outside',
-                    textfont=dict(color='white', size=12),
-                    cliponaxis=False # Évite que le texte ne soit coupé
-                )
-                
-                # Affichage
-                st.plotly_chart(fig_sports, use_container_width=True)
-            else:
-                st.caption("Aucun volume enregistré cette semaine.")
-        else:
-            st.caption("La colonne Sport n'est pas encore synchronisée.")
+        fig = make_subplots(specs=[[{"secondary_y": True}]])
+        fig.add_trace(go.Scatter(x=seances['Date'], y=seances['Fitness_CTL'], name="Fitness", line=dict(color='#1E90FF')), secondary_y=False)
+        fig.add_trace(go.Scatter(x=seances['Date'], y=seances['Fatigue_ATL'], name="Fatigue", line=dict(color='#FF4B4B', dash='dot')), secondary_y=False)
+        fig.add_trace(go.Scatter(x=seances['Date'], y=seances['Forme_TSB'], name="Forme", line=dict(color='#FFD700')), secondary_y=True)
         
-        st.divider()
+        # Zones sans texte
+        fig.add_hrect(y0=-10, y1=10, fillcolor="#00FF00", opacity=0.1, secondary_y=True)
+        fig.add_hrect(y0=-30, y1=-10, fillcolor="#FFA500", opacity=0.1, secondary_y=True)
+        fig.add_hrect(y0=-200, y1=-30, fillcolor="#FF0000", opacity=0.1, secondary_y=True)
         
-        # --- SECTION 2 : MODÉLISATION BANISTER ---
-        st.subheader("🧬 Modélisation de la Forme (Banister / TrainingPeaks)")
-        st.caption("Évolution de ta Condition (Fitness), ta Fatigue, et ton État de Forme (TSB).")
+        fig.update_layout(template="plotly_dark", showlegend=True, margin=dict(l=0, r=0, t=30, b=0), height=400)
+        st.plotly_chart(fig, use_container_width=True)
         
-        seances = seances.sort_values(by='Date').reset_index(drop=True)
-        if not seances.empty: seances['TSS'] = seances['Charge_Borg'] * 1.5 
-        
-        if len(seances) > 3:
-            with st.container(border=True):
-                seances['Fitness_CTL'] = seances['TSS'].ewm(span=42, adjust=False).mean()
-                seances['Fatigue_ATL'] = seances['TSS'].ewm(span=7, adjust=False).mean()
-                seances['Forme_TSB'] = seances['Fitness_CTL'].shift(1) - seances['Fatigue_ATL'].shift(1)
-                seances = seances.fillna(0)
-                
-                fig_banister = make_subplots(specs=[[{"secondary_y": True}]])
-                
-                # --- LES COURBES ---
-                fig_banister.add_trace(go.Scatter(x=seances['Date'], y=seances['Fitness_CTL'], name="Fitness (CTL)", mode='lines', line=dict(color='#1E90FF', width=2), fill='tozeroy', fillcolor='rgba(30, 144, 255, 0.2)'), secondary_y=False)
-                fig_banister.add_trace(go.Scatter(x=seances['Date'], y=seances['Fatigue_ATL'], name="Fatigue (ATL)", mode='lines', line=dict(color='#FF4B4B', width=2, dash='dot')), secondary_y=False)
-                fig_banister.add_trace(go.Scatter(x=seances['Date'], y=seances['Forme_TSB'], name="Forme (TSB)", mode='lines', line=dict(color='#FFD700', width=3)), secondary_y=True)
-                
-                # --- LES ZONES (Strictement SANS TEXTE !) ---
-                fig_banister.add_hrect(y0=-10, y1=10, fillcolor="#00FF00", opacity=0.1, secondary_y=True)
-                fig_banister.add_hrect(y0=-30, y1=-10, fillcolor="#FFA500", opacity=0.1, secondary_y=True)
-                fig_banister.add_hrect(y0=-200, y1=-30, fillcolor="#FF0000", opacity=0.1, secondary_y=True)
-
-                # --- LE DESIGN DES AXES ---
-                fig_banister.update_layout(
-                    template="plotly_dark", 
-                    paper_bgcolor="rgba(0,0,0,0)", 
-                    plot_bgcolor="rgba(0,0,0,0)", 
-                    hovermode="x unified", 
-                    legend=dict(orientation="h", y=1.15, x=0),
-                    margin=dict(l=0, r=0, t=30, b=0)
-                )
-                
-                fig_banister.update_yaxes(title_text="Charge (CTL/ATL)", secondary_y=False, showgrid=False)
-                fig_banister.update_yaxes(title_text="Forme (TSB)", secondary_y=True, showgrid=True, gridcolor='rgba(255,255,255,0.05)')
-                
-                st.plotly_chart(fig_banister, use_container_width=True)
-                
-                # --- LA VRAIE LÉGENDE SOUS LE GRAPHIQUE ---
-                st.markdown("""
-                <div style='display: flex; justify-content: space-around; font-size: 0.85em; color: gray; padding-bottom: 10px;'>
-                    <span>🟩 <b>Pic de Forme</b> (Frais)</span>
-                    <span>🟧 <b>Zone d'Entraînement</b> (Surcharge optimale)</span>
-                    <span>🟥 <b>Risque Surcharge</b> (Fatigue)</span>
-                </div>
-                """, unsafe_allow_html=True)
-                
-                # --- LES PRÉDICTIONS ---
-                st.markdown("---")
-                col_pred1, col_pred2 = st.columns(2)
-                with col_pred1:
-                    tsb_actuel = seances['Forme_TSB'].iloc[-1] if 'Forme_TSB' in seances.columns else 0
-                    if tsb_actuel < -30: risque, couleur_r, conseil = "ÉLEVÉ (75%)", "#FF4B4B", "⚠️ Corps en alerte. Divise le volume."
-                    elif -30 <= tsb_actuel < -10: risque, couleur_r, conseil = "MODÉRÉ (30%)", "#FFA500", "⚡ Surcharge optimale."
-                    else: risque, couleur_r, conseil = "FAIBLE (5%)", "#00FF00", "✅ Fraîcheur optimale."
-                    
-                    st.markdown(f"**Probabilité de Blessure :** <span style='color:{couleur_r};'>{risque}</span>", unsafe_allow_html=True)
-                    st.caption(conseil)
-                with col_pred2:
-                    tss_hier = seances['TSS'].iloc[-1] if 'TSS' in seances.columns else 0
-                    ttr_heures = max(12, min(72, tss_hier * 0.4)) 
-                    st.markdown(f"**Temps de Récupération (TTR) :** {int(ttr_heures)} Heures")
-                    st.caption("Régénération métabolique.")
-        else:
-            st.info("📊 Continue d'enregistrer des séances. Le modèle s'activera après quelques jours.")
-
-        # --- SECTION 4 : SURCHARGE PROGRESSIVE ---
-        st.subheader("🏋️‍♂️ Suivi de Préparation Physique (PPG)")
-        with st.expander("Afficher l'analyse de progression détaillée 📈"):
-            liste_exos = [exo for exo in df_realise.iloc[:, 4].unique() if "Bilan" not in str(exo)]
-            if liste_exos:
-                exo_choisi = st.selectbox("Sélectionne un mouvement de PPG :", liste_exos)
-                df_exo = df_realise[df_realise.iloc[:, 4] == exo_choisi].copy()
-                prog_exo = df_exo.groupby('Date').agg(Poids_Max=('Poids', 'max'), Reps_Totales=('Reps', 'sum')).reset_index()
-                
-                fig_prog = make_subplots(specs=[[{"secondary_y": True}]])
-                fig_prog.add_trace(go.Scatter(x=prog_exo['Date'], y=prog_exo['Reps_Totales'], name="Répétitions Totales", fill='tozeroy', mode='lines', line=dict(color='rgba(255, 255, 255, 0.2)', width=1), fillcolor='rgba(255, 255, 255, 0.05)'), secondary_y=False)
-                fig_prog.add_trace(go.Scatter(x=prog_exo['Date'], y=prog_exo['Poids_Max'], name="Poids Max Soulevé (kg)", mode="lines+markers", line=dict(color="#FF4B4B", width=3, shape='spline'), marker=dict(size=8, color="#0e1117", line=dict(color="#FF4B4B", width=2))), secondary_y=True)
-                
-                fig_prog.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", height=350, margin=dict(l=0, r=0, t=10, b=0), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1), hovermode="x unified")
-                fig_prog.update_yaxes(showgrid=False, secondary_y=False)
-                fig_prog.update_yaxes(showgrid=True, gridcolor='rgba(255,255,255,0.1)', secondary_y=True)
-                st.plotly_chart(fig_prog, use_container_width=True)
-
-        st.divider()
-
-        # --- SECTION 5 : ZONES CARDIAQUES ---
-        st.subheader("❤️ Répartition de l'Endurance (Zones Cardiaques)")
-        z1 = pd.to_numeric(df_realise.iloc[:, 12], errors='coerce').sum()
-        z2 = pd.to_numeric(df_realise.iloc[:, 13], errors='coerce').sum()
-        z3 = pd.to_numeric(df_realise.iloc[:, 14], errors='coerce').sum()
-        z4 = pd.to_numeric(df_realise.iloc[:, 15], errors='coerce').sum()
-        z5 = pd.to_numeric(df_realise.iloc[:, 16], errors='coerce').sum()
-        
-        if (z1 + z2 + z3 + z4 + z5) > 0:
-            with st.container(border=True):
-                colors = ['#1E90FF', '#00FA9A', '#FFD700', '#FF8C00', '#FF1493']
-                labels = ['Zone 1 (Récup)', 'Zone 2 (Endurance)', 'Zone 3 (Tempo)', 'Zone 4 (Seuil)', 'Zone 5 (VO2 Max)']
-                
-                fig_zones = go.Figure(data=[go.Pie(labels=labels, values=[z1, z2, z3, z4, z5], hole=0.6, marker=dict(colors=colors, line=dict(color='#0e1117', width=2)), textinfo='percent', hoverinfo='label+value+percent')])
-                fig_zones.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", height=350, margin=dict(l=0, r=0, t=10, b=0), annotations=[dict(text='CARDIO<br>ZONES', x=0.5, y=0.5, font_size=16, showarrow=False, font_color='white')])
-                st.plotly_chart(fig_zones, use_container_width=True)
-        else: st.caption("Aucune donnée de fréquence cardiaque enregistrée pour le moment.")
-
 # ==============================================================================
 # PAGE 4 : GESTION DU PROGRAMME & IA
 # ==============================================================================
