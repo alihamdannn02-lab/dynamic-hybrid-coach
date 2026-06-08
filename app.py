@@ -291,58 +291,29 @@ st.sidebar.info(
     "[🔗 Mon profil LinkedIn](https://www.linkedin.com/in/alihamdan2002/)\n\n"
 )
         
-# ==============================================================================
-# PAGE 1 : CHECK-IN MATIN
-# ==============================================================================
+# ---- PAGE 1 : CHECK-IN MATIN ----
 if page == "Morning Readiness":
     st.markdown("### 🎙️ L'Assistant Rapide (NLP)")
     st.write("Pas envie de régler les curseurs ? Dicte tes constantes, l'IA s'occupe du reste.")
     
     texte_checkin = st.text_area("Ta nuit en une phrase :", placeholder="Ex: J'ai dormi 7h, ma FC est à 42, VFC 65, je suis en pleine forme mais j'ai mal aux mollets.")
     
+    # Bouton NLP corrigé
     if st.button("🪄 Remplir automatiquement", type="secondary"):
-        with st.spinner("Analyse sémantique de tes constantes..."):
-            
-            # --- ALGORITHME DE BASELINE BIOMÉTRIQUE SELON L'ÂGE ---
-            # La FCR moyenne d'un athlète reste assez stable (autour de 45-50)
-            fcr_moyen_age = 45 
-            
-            # La VFC diminue physiologiquement avec l'âge (Formule statistique de référence sportive)
-            vfc_moyen_age = max(30, int(80 - (age - 20) * 0.7)) 
-            
-            # On passe ce contexte dynamique à l'IA
-            prompt_nlp = f"""Extrais les données physiologiques de ce texte : "{texte_checkin}". 
-            Renvoie STRICTEMENT un JSON avec ces clés : sommeil (float), fcr (int), vfc (int), energie (int de 1 à 10). 
-            Si une donnée manque ou est inconnue, utilise obligatoirement ces moyennes par défaut adaptées au profil de l'athlète ({age} ans) : sommeil=7.5, fcr={fcr_moyen_age}, vfc={vfc_moyen_age}, energie=5."""
-            
+        with st.spinner("Analyse sémantique..."):
+            prompt_nlp = f"""Extrais les données physiologiques : sommeil (float), fcr (int), vfc (int), energie (int 1-10). 
+            Si info manquante, utilise moyenne age={age} (fcr=45, vfc=60, sommeil=7.5)."""
             try:
                 reponse = modele_ia.generate_content(prompt_nlp)
                 data_ia = json.loads(reponse.text.replace('```json', '').replace('```', '').strip())
-                
-                # --- SÉCURITÉ ANTI-CRASH AVEC BASES DYNAMIQUES ---
-                val_sommeil = float(data_ia.get('sommeil', 7.5))
-                st.session_state['sommeil_auto'] = max(0.0, min(12.0, val_sommeil))
-                
-                val_fcr = int(data_ia.get('fcr', fcr_moyen_age))
-                if val_fcr < 30: val_fcr = fcr_moyen_age 
-                st.session_state['fcr_auto'] = max(30, min(100, val_fcr))
-                
-                val_vfc = int(data_ia.get('vfc', vfc_moyen_age))
-                if val_vfc < 10: val_vfc = vfc_moyen_age
-                st.session_state['vfc_auto'] = max(10, min(150, val_vfc))
-                
-                val_energie = int(data_ia.get('energie', 5))
-                if val_energie < 1: val_energie = 5
-                st.session_state['energie_auto'] = max(1, min(10, val_energie))
-                
-                st.success(f"✅ Curseurs ajustés par rapport à ton profil ({age} ans) !")
-            except Exception as e:
-                st.error("L'IA n'a pas pu structurer tes constantes, utilise les curseurs manuels.")
-                
-    st.header("⚡ Morning Readiness")
-    st.markdown("Exprime ton état du jour en **15 secondes chrono**.")
-    st.divider()
+                st.session_state['sommeil_auto'] = float(data_ia.get('sommeil', 7.5))
+                st.session_state['fcr_auto'] = int(data_ia.get('fcr', 45))
+                st.session_state['vfc_auto'] = int(data_ia.get('vfc', 60))
+                st.session_state['energie_auto'] = int(data_ia.get('energie', 7))
+                st.rerun()
+            except: st.error("Erreur IA.")
 
+    st.header("⚡ Morning Readiness")
     st.subheader("📊 Constantes Physiologiques")
     col1, col2 = st.columns(2)
     with col1:
@@ -414,18 +385,22 @@ if page == "Morning Readiness":
 
     if st.button("Valider mon Check-in", type="primary", use_container_width=True):
         date_du_jour = datetime.now().strftime("%Y-%m-%d")
-        muscles_str = ", ".join(muscles_douloureux) if muscles_douloureux else "Aucun"
-        nouvelle_ligne_checkin = [date_du_jour, float(sommeil), int(vfc), int(fcr), int(energie), str(muscles_str)]
-
+        muscles_str = ", ".join(st.session_state['muscles_selectionnes']) if st.session_state['muscles_selectionnes'] else "Aucun"
+        
+        # Sauvegarde unique et propre
+        nouvelle_ligne_checkin = [date_du_jour, float(sommeil), int(vfc), int(fcr), int(energie), str(muscles_str), int(age)]
+        
         try:
             save_checkin(nouvelle_ligne_checkin)
-            st.success("✅ Check-in enregistré en base de données ! Tu es prêt pour ta journée.")
+            st.success("✅ Check-in enregistré en base de données !")
             st.balloons()
+            
+            # Alerte intelligente basée sur le readiness
             if sommeil < 6 or vfc < 45 or energie < 4:
                 st.warning("⚠️ Ton niveau de récupération est faible. L'IA va adapter ta séance.")
         except Exception as e:
             st.error(f"Erreur lors de la sauvegarde : {e}")
-
+            
     muscles_str = ", ".join(muscles_douloureux) if muscles_douloureux else "Aucun"
         
         
