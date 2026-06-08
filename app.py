@@ -426,6 +426,14 @@ if page == "Morning Readiness":
         except Exception as e:
             st.error(f"Erreur lors de la sauvegarde : {e}")
 
+    muscles_str = ", ".join(muscles_douloureux) if muscles_douloureux else "Aucun"
+        
+        
+    nouvelle_ligne_checkin = [date_du_jour, float(sommeil), int(vfc), int(fcr), int(energie), str(muscles_str), int(age)]
+
+        try:
+    save_checkin(nouvelle_ligne_checkin)
+            
 # ==============================================================================
 # PAGE 2 : SEANCE DU JOUR
 # ==============================================================================
