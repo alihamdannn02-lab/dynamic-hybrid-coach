@@ -745,26 +745,77 @@ elif page == "Mes Insights (Data)":
 
         st.divider()
 
-        # --- SECTION : VOLUME PAR DISCIPLINE ---
-        st.subheader("🏊‍♂️ 🚴‍♂️ 🏃‍♂️ Volume par Discipline")
+        # --- SECTION : VOLUME PAR DISCIPLINE (Triathlon / Hybride) ---
+        st.subheader("🏊‍♂️ 🚴‍♂️ 🏃‍♂️ Volume par Discipline (Semaine Actuelle)")
+        
+        # On s'assure que la colonne Sport_Discipline existe bien
         if 'Sport_Discipline' in seances_semaine_actuelle.columns:
+            # Groupement propre par Sport et Somme des Heures
             volume_par_sport = seances_semaine_actuelle.groupby('Sport_Discipline')['Duree_Seance'].sum().reset_index()
+            
             if not volume_par_sport.empty and volume_par_sport['Duree_Seance'].sum() > 0:
+                # Conversion Minutes -> Heures pour l'affichage
                 volume_par_sport['Heures'] = volume_par_sport['Duree_Seance'] / 60
+                
+                # --- DESIGN AMÉLIORÉ PLOTLY ---
                 fig_sports = px.bar(
-                    volume_par_sport, x='Heures', y='Sport_Discipline', orientation='h',
+                    volume_par_sport,
+                    x='Heures',
+                    y='Sport_Discipline',
+                    orientation='h',
+                    # Affiche le texte (ex: 12.5h) à l'extérieur de la barre
                     text=volume_par_sport['Heures'].apply(lambda x: f"{x:.1f}h"),
-                    color='Sport_Discipline',
+                    color='Sport_Discipline', # Colore chaque sport différemment
+                    # Palette de couleurs "Élite" cohérente avec le Donut FC
                     color_discrete_sequence=['#00F0FF', '#FF4B4B', '#00FF00', '#FFD700', '#9D00FF']
                 )
+                
                 fig_sports.update_layout(
-                    template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                    height=250, margin=dict(l=0, r=0, t=10, b=0), showlegend=False, xaxis_title="Heures", yaxis_title=""
+                    template="plotly_dark", # Fond noir
+                    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                    height=350, # Plus de hauteur pour les légendes
+                    margin=dict(l=0, r=10, t=10, b=10),
+                    
+                    # --- ACTIVATION ET DESIGN DE LA LÉGENDE ---
+                    showlegend=True,
+                    legend=dict(
+                        title=dict(text="Disciplines", font=dict(color='gray')),
+                        orientation="h", # Horizontale
+                        yanchor="bottom",
+                        y=1.02, # Positionnée juste au-dessus du graphique
+                        xanchor="right",
+                        x=1,
+                        font=dict(size=11, color='white')
+                    ),
+
+                    # --- AJOUT DES TITRES D'AXES ---
+                    xaxis=dict(
+                        title=dict(text="Volume d'entraînement (Heures)", font=dict(color='gray')),
+                        showgrid=True,
+                        gridcolor='rgba(255,255,255,0.05)' # Grille très subtile
+                    ),
+                    yaxis=dict(
+                        title=dict(text="Discipline", font=dict(color='gray')),
+                        showgrid=False
+                    )
                 )
-                fig_sports.update_traces(textposition='outside')
+
+                # --- SUPPRESSION DE L'ARTEFACT (Colorbar) ---
+                fig_sports.update_coloraxes(showscale=False)
+                
+                # Style du texte sur les barres (Poids & Position)
+                fig_sports.update_traces(
+                    textposition='outside',
+                    textfont=dict(color='white', size=12),
+                    cliponaxis=False # Évite que le texte ne soit coupé
+                )
+                
+                # Affichage
                 st.plotly_chart(fig_sports, use_container_width=True)
-            else: st.caption("Aucun volume enregistré cette semaine.")
-        else: st.caption("La colonne Sport n'est pas encore synchronisée.")
+            else:
+                st.caption("Aucun volume enregistré cette semaine.")
+        else:
+            st.caption("La colonne Sport n'est pas encore synchronisée.")
         
         st.divider()
         
