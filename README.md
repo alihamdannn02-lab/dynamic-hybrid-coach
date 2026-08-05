@@ -1,5 +1,5 @@
 
-# ⚡ Enduraw - Athlete System
+# ⚡ Dynamic - Athlete System
 
 Application de suivi de performance et de coaching hybride basée sur l'IA (Gemini).
 
