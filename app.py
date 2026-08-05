@@ -325,9 +325,14 @@ if page == "Morning Readiness":
     st.caption("💡 *Astuce scientifique : Une baisse de VFC couplée à une hausse de FCR indique souvent une fatigue nerveuse (Parasympathique).*")
 
     st.divider()
-    
+
 st.subheader("📍 Sélection des zones de douleurs")
-    st.info("Sélectionne les zones corporelles tendues ou douloureuses pour que l'IA adapte ta séance :")
+    st.info("Réfère-toi à la carte ci-dessous et sélectionne tes zones tendues :")
+
+    try:
+        st.image("body_map.png", width=500)
+    except:
+        st.caption("*(Image de la carte non trouvée, mais le formulaire reste actif)*")
 
     if 'muscles_selectionnes' not in st.session_state:
         st.session_state['muscles_selectionnes'] = []
