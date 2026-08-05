@@ -326,7 +326,7 @@ if page == "Morning Readiness":
 
     st.divider()
 
-st.subheader("📍 Sélection des zones de douleurs")
+    st.subheader("📍 Sélection des zones de douleurs")
     st.info("Réfère-toi à la carte ci-dessous et sélectionne tes zones tendues :")
 
     try:
