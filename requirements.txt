@@ -1,9 +1,8 @@
-streamlit
+streamlit==1.32.2
 pandas
 numpy
 gspread
 google-auth
-openai
-streamlit-image-coordinates
 google-generativeai
 plotly
+streamlit-image-coordinates
