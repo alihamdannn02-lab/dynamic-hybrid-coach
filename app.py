@@ -14,7 +14,7 @@ from plotly.subplots import make_subplots
 
 # ---- CONFIGURATION DE LA PAGE ----
 st.set_page_config(
-    page_title="Enduraw - Athlete System",
+    page_title="Dynamic Athlete System",
     page_icon="⚡",
     layout="centered",
     initial_sidebar_state="expanded"
