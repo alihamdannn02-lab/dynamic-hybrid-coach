@@ -327,40 +327,28 @@ if page == "Morning Readiness":
     st.divider()
     
     st.subheader("📍 Sélection des zones de douleurs")
-    st.info(
-        "Sélectionne les zones corporelles tendues ou douloureuses pour que"
-        " l'IA adapte ta séance :"
-    )
+    st.info("Sélectionne les zones corporelles tendues ou douloureuses pour que l'IA adapte ta séance :")
 
-    if "muscles_selectionnes" not in st.session_state:
-      st.session_state["muscles_selectionnes"] = []
+    if 'muscles_selectionnes' not in st.session_state:
+        st.session_state['muscles_selectionnes'] = []
 
     muscles_possibles = [
-        "Épaules",
-        "Pectoraux",
-        "Biceps",
-        "Triceps",
-        "Abdominaux",
-        "Haut du dos",
-        "Bas du dos (Lombaires)",
-        "Fessiers",
-        "Quadriceps",
-        "Ischios",
-        "Genoux",
-        "Mollets",
+        "Épaules", "Pectoraux", "Biceps", "Triceps", "Abdominaux", 
+        "Haut du dos", "Bas du dos (Lombaires)", "Fessiers", 
+        "Quadriceps", "Ischios", "Genoux", "Mollets"
     ]
 
     muscles_douloureux = st.multiselect(
         "Zones ciblées :",
         muscles_possibles,
-        default=st.session_state["muscles_selectionnes"],
+        default=st.session_state['muscles_selectionnes']
     )
-    st.session_state["muscles_selectionnes"] = muscles_douloureux
+    st.session_state['muscles_selectionnes'] = muscles_douloureux
 
     if muscles_douloureux:
-      st.success(f"Muscles sélectionnés : {', '.join(muscles_douloureux)}")
+        st.success(f"Muscles sélectionnés : {', '.join(muscles_douloureux)}")
     else:
-      st.caption("Aucun muscle douloureux sélectionné.")
+        st.caption("Aucun muscle douloureux sélectionné.")
 
     st.divider()
 
