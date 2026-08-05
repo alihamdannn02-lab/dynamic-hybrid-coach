@@ -6,6 +6,7 @@ import re
 from datetime import datetime
 import gspread
 from google.oauth2.service_account import Credentials
+from streamlit_image_coordinates import streamlit_image_coordinates
 import google.generativeai as genai
 import plotly.express as px
 import plotly.graph_objects as go
