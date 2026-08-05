@@ -326,77 +326,74 @@ if page == "Morning Readiness":
 
     st.divider()
     
-    st.subheader("📍 Carte corporelle des douleurs")
-    st.info("**Zones cliquables :**\n"
-            "* **Face :** Cou, Épaules, Pecs (Haut/Bas), Biceps, Abdos, Quadriceps, Genoux.\n"
-            "* **Dos :** Haut du dos, Bas du dos, Triceps, Fessiers, Ischios, Mollets.")
+    st.subheader("📍 Sélection des zones de douleurs")
+    st.info(
+        "Sélectionne les zones corporelles tendues ou douloureuses pour que"
+        " l'IA adapte ta séance :"
+    )
 
-    if 'muscles_selectionnes' not in st.session_state:
-        st.session_state['muscles_selectionnes'] = []
-    if 'dernier_clic' not in st.session_state:
-        st.session_state['dernier_clic'] = None
-    if 'map_key' not in st.session_state:
-        st.session_state['map_key'] = 0
+    if "muscles_selectionnes" not in st.session_state:
+      st.session_state["muscles_selectionnes"] = []
 
-    value = streamlit_image_coordinates("body_map.png", width=600, key=f"body_map_{st.session_state['map_key']}")
+    muscles_possibles = [
+        "Épaules",
+        "Pectoraux",
+        "Biceps",
+        "Triceps",
+        "Abdominaux",
+        "Haut du dos",
+        "Bas du dos (Lombaires)",
+        "Fessiers",
+        "Quadriceps",
+        "Ischios",
+        "Genoux",
+        "Mollets",
+    ]
 
-    muscle_identifie = None
-
-    if value is not None:
-        coords_actuelles = (value['x'], value['y'])
-        if coords_actuelles != st.session_state['dernier_clic']:
-            st.session_state['dernier_clic'] = coords_actuelles
-            x, y = coords_actuelles
-            
-            if x < 300: # FACE AVANT
-                if 120 < y < 165 and (60 < x < 100 or 190 < x < 240): muscle_identifie = "Épaules (Face)"
-                elif 130 < y < 165 and 100 <= x <= 190: muscle_identifie = "Pectoraux (Haut)"
-                elif 165 <= y < 195 and 100 <= x <= 190: muscle_identifie = "Pectoraux (Bas)"
-                elif 180 < y < 240 and (55 < x < 95 or 195 < x < 235): muscle_identifie = "Biceps"
-                elif 200 < y < 280 and 110 < x < 180: muscle_identifie = "Abdominaux"
-                elif 280 <= y < 420 and 100 < x < 190: muscle_identifie = "Quadriceps" 
-                elif 430 < y < 490 and 95 < x < 195: muscle_identifie = "Genoux"
-            else: # FACE ARRIÈRE
-                if 80 < y < 125 and 410 < x < 480: muscle_identifie = "Cou / Trapèzes"
-                elif 125 <= y < 195 and 400 < x < 490: muscle_identifie = "Haut du dos"
-                elif 180 < y < 240 and (340 < x < 410 or 490 < x < 550): muscle_identifie = "Triceps"
-                elif 195 <= y < 280 and 400 < x < 490: muscle_identifie = "Bas du dos (Lombaires)"
-                elif 290 < y < 360 and 400 < x < 510: muscle_identifie = "Fessiers"
-                elif 370 < y < 450 and 390 < x < 490: muscle_identifie = "Ischios (Hamstrings)"
-                elif 470 < y < 540 and 390 < x < 490: muscle_identifie = "Mollets"
-
-            if muscle_identifie and muscle_identifie not in st.session_state['muscles_selectionnes']:
-                st.session_state['muscles_selectionnes'].append(muscle_identifie)
-
-    muscles_douloureux = st.session_state['muscles_selectionnes']
+    muscles_douloureux = st.multiselect(
+        "Zones ciblées :",
+        muscles_possibles,
+        default=st.session_state["muscles_selectionnes"],
+    )
+    st.session_state["muscles_selectionnes"] = muscles_douloureux
 
     if muscles_douloureux:
-        st.info(f"Muscles ciblés : {', '.join(muscles_douloureux)}")
-        if st.button("🗑️ Effacer la sélection"):
-            st.session_state['muscles_selectionnes'] = []
-            st.session_state['dernier_clic'] = None
-            st.session_state['map_key'] += 1 
-            st.rerun()
+      st.success(f"Muscles sélectionnés : {', '.join(muscles_douloureux)}")
     else:
-        st.caption("Aucun muscle sélectionné.")
+      st.caption("Aucun muscle douloureux sélectionné.")
 
     st.divider()
 
     if st.button("Valider mon Check-in", type="primary", use_container_width=True):
-        date_du_jour = datetime.now().strftime("%Y-%m-%d")
-        muscles_str = ", ".join(st.session_state['muscles_selectionnes']) if st.session_state['muscles_selectionnes'] else "Aucun"
-        
-        nouvelle_ligne_checkin = [date_du_jour, float(sommeil), int(vfc), int(fcr), int(energie), str(muscles_str), int(age)]
-        
-        try:
-            save_checkin(nouvelle_ligne_checkin)
-            st.success("✅ Check-in enregistré en base de données !")
-            st.balloons()
-            
-            if sommeil < 6 or vfc < 45 or energie < 4:
-                st.warning("⚠️ Ton niveau de récupération est faible. L'IA va adapter ta séance.")
-        except Exception as e:
-            st.error(f"Erreur lors de la sauvegarde : {e}")
+      date_du_jour = datetime.now().strftime("%Y-%m-%d")
+      muscles_str = (
+          ", ".join(st.session_state["muscles_selectionnes"])
+          if st.session_state["muscles_selectionnes"]
+          else "Aucun"
+      )
+
+      nouvelle_ligne_checkin = [
+          date_du_jour,
+          float(sommeil),
+          int(vfc),
+          int(fcr),
+          int(energie),
+          str(muscles_str),
+          int(age),
+      ]
+
+      try:
+        save_checkin(nouvelle_ligne_checkin)
+        st.success("✅ Check-in enregistré en base de données !")
+        st.balloons()
+
+        if sommeil < 6 or vfc < 45 or energie < 4:
+          st.warning(
+              "⚠️ Ton niveau de récupération est faible. L'IA va adapter ta"
+              " séance."
+          )
+      except Exception as e:
+        st.error(f"Erreur lors de la sauvegarde : {e}")
 
 # ==============================================================================
 # PAGE 2 : SEANCE DU JOUR
