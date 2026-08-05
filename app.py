@@ -144,7 +144,7 @@ def delete_last_session():
         
 def generer_seance_ia(energie, sommeil, courbatures, objectif):
     """Moteur d'inférence NLP pour générer une séance d'endurance sur-mesure."""
-    prompt = f"""Tu es le moteur d'intelligence artificielle d'Enduraw, un expert d'élite en physiologie du sport et entraînement d'endurance (Triathlon, Trail, Cyclisme).
+    prompt = f"""Tu es le moteur d'intelligence artificielle, un expert d'élite en physiologie du sport et entraînement d'endurance (Triathlon, Trail, Cyclisme).
     Voici l'état actuel de l'athlète : Sommeil: {sommeil}h, Énergie: {energie}/10, Douleurs musculaires localisées: {courbatures}, Objectif de la séance: {objectif}.
     
     Règles physiologiques strictes :
@@ -241,12 +241,12 @@ def calculer_readiness(sommeil, vfc, fcr, energie):
     return round(readiness)
     
 # ---- HEADER & SIDEBAR NAVIGATION ----
-st.title("⚡ Enduraw - Athlete System")
+st.title("⚡ Dynamic Athlete System")
 st.subheader("Optimisation de la performance & Suivi de récupération")
 st.divider()
 
 with st.sidebar:
-    st.title("Enduraw Athlete")
+    st.title("Dynamic Athlete")
     st.markdown("## ⚡ Profil & Suivi")
     
     # ---> AJOUT DE L'ÂGE DANS LE PROFIL <---
@@ -286,7 +286,7 @@ if st.sidebar.button("🔄 Synchroniser API Garmin/Strava"):
 st.sidebar.divider()
 st.sidebar.markdown("### 👨‍💻 À propos")
 st.sidebar.info(
-    "POC développé par **Ali HAMDAN** pour le cas pratique **Enduraw**.\n\n"
+    "POC développé par **Ali HAMDAN**.\n\n"
     "[🔗 Mon profil LinkedIn](https://www.linkedin.com/in/alihamdan2002/)\n\n"
 )
         
