@@ -326,7 +326,7 @@ if page == "Morning Readiness":
 
     st.divider()
     
-    st.subheader("📍 Sélection des zones de douleurs")
+st.subheader("📍 Sélection des zones de douleurs")
     st.info("Sélectionne les zones corporelles tendues ou douloureuses pour que l'IA adapte ta séance :")
 
     if 'muscles_selectionnes' not in st.session_state:
@@ -351,38 +351,6 @@ if page == "Morning Readiness":
         st.caption("Aucun muscle douloureux sélectionné.")
 
     st.divider()
-
-    if st.button("Valider mon Check-in", type="primary", use_container_width=True):
-      date_du_jour = datetime.now().strftime("%Y-%m-%d")
-      muscles_str = (
-          ", ".join(st.session_state["muscles_selectionnes"])
-          if st.session_state["muscles_selectionnes"]
-          else "Aucun"
-      )
-
-      nouvelle_ligne_checkin = [
-          date_du_jour,
-          float(sommeil),
-          int(vfc),
-          int(fcr),
-          int(energie),
-          str(muscles_str),
-          int(age),
-      ]
-
-      try:
-        save_checkin(nouvelle_ligne_checkin)
-        st.success("✅ Check-in enregistré en base de données !")
-        st.balloons()
-
-        if sommeil < 6 or vfc < 45 or energie < 4:
-          st.warning(
-              "⚠️ Ton niveau de récupération est faible. L'IA va adapter ta"
-              " séance."
-          )
-      except Exception as e:
-        st.error(f"Erreur lors de la sauvegarde : {e}")
-
 # ==============================================================================
 # PAGE 2 : SEANCE DU JOUR
 # ==============================================================================
