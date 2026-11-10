@@ -148,7 +148,7 @@ def render() -> None:
                 else:
                     st.warning("Lecture impossible, saisis le WOD à la main.")
             else:
-                st.caption("Configure `ANTHROPIC_API_KEY` pour la lecture automatique du tableau.")
+                st.caption("Configure `GEMINI_API_KEY` pour la lecture automatique du tableau.")
         wod = st.text_area("Contenu du WOD", key="wod_text", placeholder="For Time : 1000 m Run / 50 Wall Balls / …")
         rpe = _rpe_block(8)
         titre = f"Bilan WOD | Format:{fmt}" + (f" | {wod.replace(chr(10), ' / ')}" if wod.strip() else "")

@@ -28,4 +28,4 @@ def has_secret(key: str) -> bool:
 
 
 SPREADSHEET_NAME = "DB_Dynamic_Hybrid_Coach"
-DEFAULT_CLAUDE_MODEL = "claude-opus-5-5"
+DEFAULT_GEMINI_MODEL = "gemini-2.5-flash"
