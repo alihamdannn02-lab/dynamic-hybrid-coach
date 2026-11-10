@@ -36,7 +36,8 @@ class Coach:
         if self._client is None:
             from google import genai
 
-            self._client = genai.Client(api_key=self.api_key)
+            # JSON mode n'est servi que par l'API v1beta (le SDK cible v1 par défaut).
+            self._client = genai.Client(api_key=self.api_key, http_options={"api_version": "v1beta"})
         return self._client
 
     def generate_json(self, prompt: str, temperature: float = 0.4) -> dict | None:

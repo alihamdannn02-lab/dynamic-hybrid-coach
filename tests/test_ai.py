@@ -59,3 +59,19 @@ def test_normalize_session_is_tolerant():
     assert s["exercices"][0] == {"Exercice": "Squat", "Séries": 4, "Reps": "8", "Poids (kg)": 40.5}
     assert s["exercices"][1]["Séries"] == 1
     assert len(s["exercices"]) == 2
+
+
+def test_gemini_client_targets_v1beta(monkeypatch):
+    """Le mode JSON n'existe que sur v1beta : sans cela, chaque appel échoue (400)
+    et l'app retombe silencieusement sur les règles."""
+    from google import genai
+
+    captured = {}
+
+    class FakeClient:
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+
+    monkeypatch.setattr(genai, "Client", FakeClient)
+    Coach(api_key="test")._get_client()
+    assert captured["http_options"] == {"api_version": "v1beta"}
