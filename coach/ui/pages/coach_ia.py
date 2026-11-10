@@ -133,7 +133,7 @@ def _context_defaults() -> dict:
 def _generator() -> None:
     coach = state.coach()
     if not coach.enabled:
-        st.info("🔌 `GEMINI_API_KEY` non configurée : le coach utilise sa bibliothèque de séances basée sur des règles physiologiques.")
+        st.info("🔌 `ANTHROPIC_API_KEY` non configurée : le coach utilise sa bibliothèque de séances basée sur des règles physiologiques.")
 
     c1, c2 = st.columns(2)
     semaine = c1.number_input("Pour la semaine n°", min_value=1, step=1, value=state.current_week(), key="ia_sem")
@@ -191,7 +191,7 @@ def _generator() -> None:
     st.info(f"🗣️ {seance['message']}")
     df = pd.DataFrame(seance["exercices"])
     edited = st.data_editor(df, hide_index=True, width="stretch", num_rows="dynamic", key="ia_editor")
-    st.caption(f"Source : {'Gemini' if st.session_state.get('seance_ia_source') == 'ia' else 'règles physiologiques'} · destination : {jour}, semaine {semaine}.")
+    st.caption(f"Source : {'Claude' if st.session_state.get('seance_ia_source') == 'ia' else 'règles physiologiques'} · destination : {jour}, semaine {semaine}.")
     c1, c2 = st.columns(2)
     if c1.button("✅ Ajouter au programme", width="stretch"):
         rows = _programme_rows(edited, semaine, jour, seance["titre"], "IA")

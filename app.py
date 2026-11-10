@@ -49,7 +49,7 @@ def sidebar() -> None:
         status = [
             theme.pill(f"⌚ Garmin {'connecté' if garmin.connected else 'déconnecté'}", theme.GREEN if garmin.connected else theme.MUTED),
             theme.pill(f"🗄️ {storage.label}", theme.ACCENT if not state.is_local() else theme.AMBER),
-            theme.pill(f"🧠 IA {'Gemini' if state.coach().enabled else 'règles'}", theme.GREEN if state.coach().enabled else theme.MUTED),
+            theme.pill(f"🧠 IA {'Claude' if state.coach().enabled else 'règles'}", theme.GREEN if state.coach().enabled else theme.MUTED),
         ]
         st.markdown("<div style='line-height:2'>" + "".join(status) + "</div>", unsafe_allow_html=True)
 

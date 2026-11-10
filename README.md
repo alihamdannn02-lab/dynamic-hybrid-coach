@@ -1,7 +1,7 @@
 # ⚡ Dynamic Hybrid Coach
 
 Application de coaching **hybride** (endurance + préparation physique) pilotée par la donnée :
-readiness matinale, modélisation de la charge (Banister / ACWR), coach IA (Gemini) et
+readiness matinale, modélisation de la charge (Banister / ACWR), coach IA (**Claude**, Anthropic) et
 **synchronisation Garmin Connect**.
 
 [![CI](https://github.com/alihamdannn02-lab/dynamic-hybrid-coach/actions/workflows/ci.yml/badge.svg)](https://github.com/alihamdannn02-lab/dynamic-hybrid-coach/actions/workflows/ci.yml)
@@ -18,7 +18,7 @@ leur **charge d'entraînement** à leur **état de forme physiologique**, et dé
 | ⚡ **Morning Readiness** | Check-in en 1 clic depuis **Garmin** (sommeil, VFC, FC repos, Body Battery, Training Readiness), par phrase libre (NLP) ou manuel. Score de readiness comparé à **ta baseline personnelle** (30 j). |
 | 🏃 **Ma Séance du Jour** | Saisie endurance (zones FC en bpm calculées sur ta FC max), WOD (lecture de la **photo du tableau** par l'IA), PPG série par série avec suggestion de surcharge progressive. |
 | 📊 **Cockpit Performance** | Performance Manager (CTL / ATL / TSB), **ACWR** et monotonie de Foster, volume par discipline, 1RM estimé (Epley + RIR), distribution d'intensité (polarisé / pyramidal), tendances VFC & FC repos. |
-| 🧠 **Coach IA & Programme** | Génération de séance tenant compte du sommeil, des douleurs, de la readiness, du TSB, de l'ACWR et des données Garmin. Planificateur avec duplication de la semaine précédente. |
+| 🧠 **Coach IA & Programme** | Génération de séance par **Claude** tenant compte du sommeil, des douleurs, de la readiness, du TSB, de l'ACWR et des données Garmin. Planificateur avec duplication de la semaine précédente. |
 | ⌚ **Garmin Connect** | Connexion (MFA supporté), récupération du matin, **import des activités** (distance, durée, D+, allure/puissance, temps par zone, RPE) sans doublon. |
 
 ## ⌚ Intégration Garmin
@@ -39,6 +39,18 @@ cas de connexions répétées), copie le jeton affiché dans *Session & déploie
 
 > Limite : bibliothèque non officielle — si Garmin modifie son protocole, une mise à jour de
 > `garminconnect` peut être nécessaire (`pip install -U garminconnect`).
+
+## 🧠 Coach IA (Claude)
+
+L'IA s'appuie sur l'API Claude d'Anthropic (SDK `anthropic`, modèle `claude-opus-5-5` par défaut) :
+- **sorties structurées** (JSON Schema) pour l'extraction du check-in et la génération de séance :
+  la réponse est garantie conforme, sans parsing fragile ;
+- **vision** pour transcrire la photo du tableau de WOD ;
+- niveau d'effort adapté à chaque tâche (`low` pour l'extraction, `medium` pour la séance) ;
+- repli automatique côté serveur si une requête est refusée (`fallbacks: "default"`).
+
+Crée une clé sur [console.anthropic.com](https://console.anthropic.com/settings/keys) et ajoute-la
+au secret `ANTHROPIC_API_KEY`. La facturation de l'API est indépendante de l'abonnement claude.ai.
 
 ## 🧬 Modèles physiologiques
 
@@ -68,7 +80,7 @@ Copie `.streamlit/secrets.toml.example` en `.streamlit/secrets.toml` :
 
 | Clé | Rôle |
 |---|---|
-| `GEMINI_API_KEY` (`GEMINI_MODEL`) | Coach IA, NLP, lecture des photos de WOD. Sans clé : moteur de règles physiologiques. |
+| `ANTHROPIC_API_KEY` (`CLAUDE_MODEL`, défaut `claude-opus-5-5`) | Coach IA, NLP, lecture des photos de WOD. Clé à créer sur console.anthropic.com. Sans clé : moteur de règles physiologiques. |
 | `GARMIN_TOKENS` *ou* `GARMIN_EMAIL` / `GARMIN_PASSWORD` | Connexion Garmin automatique au démarrage. |
 | `[gcp_service_account]`, `SPREADSHEET_NAME` | Stockage Google Sheets (onglets `Programme_Theorique`, `Historique_Realise`, `Historique_Checkin`, créés si absents). |
 
@@ -96,7 +108,7 @@ coach/
   schema.py             # schéma canonique des onglets
   readiness.py          # score de readiness + baseline personnelle
   training_load.py      # TSS, CTL/ATL/TSB, ACWR, zones FC
-  ai.py                 # Gemini (google-genai) + repli par règles
+  ai.py                 # Claude (SDK anthropic, sorties structurées) + repli par règles
   garmin.py             # connexion, MFA, jetons, parseurs Garmin
   demo.py               # jeu de données de démonstration
   ui/                   # thème, état partagé, pages Streamlit

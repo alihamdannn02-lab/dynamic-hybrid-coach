@@ -22,7 +22,7 @@ def _page_script(module: str) -> None:  # exécuté par AppTest comme un script 
 @pytest.fixture()
 def data_dir(tmp_path, monkeypatch):
     monkeypatch.setenv("LOCAL_DATA_DIR", str(tmp_path))
-    monkeypatch.setenv("GEMINI_API_KEY", "")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "")
     from coach.ui import state
 
     state._storage.clear()

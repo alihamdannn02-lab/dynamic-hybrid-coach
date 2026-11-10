@@ -4,5 +4,5 @@ numpy>=1.26
 plotly>=5.24
 gspread>=6.1
 google-auth>=2.30
-google-genai>=1.0
+anthropic>=2.7
 garminconnect>=0.3.20

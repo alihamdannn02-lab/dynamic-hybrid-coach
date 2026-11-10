@@ -1,21 +1,36 @@
-"""Coach IA (Google Gemini) avec repli déterministe hors-ligne.
+"""Coach IA propulsé par Claude (Anthropic) avec repli déterministe hors-ligne.
 
-* SDK officiel ``google-genai`` (l'ancien ``google-generativeai`` est déprécié).
-* Sortie JSON forcée (``response_mime_type``) + parsing tolérant.
-* Si aucune clé n'est configurée ou si l'appel échoue, des règles
+* SDK officiel ``anthropic`` ; modèle par défaut ``claude-opus-5-5``
+  (surchargeable via le secret ``CLAUDE_MODEL``).
+* Sorties structurées (``output_config.format`` + JSON Schema) : la réponse
+  est garantie conforme au schéma, plus besoin de nettoyer du Markdown.
+* Vision : lecture de la photo du tableau de WOD.
+* Repli serveur en cas de refus de sécurité (``fallbacks: "default"``).
+* Sans clé ``ANTHROPIC_API_KEY`` (ou si l'appel échoue), des règles
   physiologiques simples prennent le relais : l'application reste utilisable.
 """
 
 from __future__ import annotations
 
+import base64
 import json
 import logging
 import re
 from dataclasses import dataclass
 
-from .config import DEFAULT_GEMINI_MODEL, get_secret
+from .config import DEFAULT_CLAUDE_MODEL, get_secret
 
 log = logging.getLogger(__name__)
+
+FALLBACK_BETA = "server-side-fallback-2026-07-01"
+SYSTEM_PROMPT = (
+    "Tu es le moteur de coaching de Dynamic Hybrid Coach : un expert en physiologie de l'endurance "
+    "et en entraînement hybride (triathlon, trail, cyclisme, Hyrox, PPG). Tu réponds en français, "
+    "de façon concise et factuelle. La sécurité de l'athlète prime sur l'objectif de séance."
+)
+
+_NULLABLE_NUMBER = {"anyOf": [{"type": "number"}, {"type": "null"}]}
+_NULLABLE_INT = {"anyOf": [{"type": "integer"}, {"type": "null"}]}
 
 
 # ---------------------------------------------------------------------------
@@ -23,8 +38,8 @@ log = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 class Coach:
     def __init__(self, api_key: str | None = None, model: str | None = None) -> None:
-        self.api_key = api_key if api_key is not None else get_secret("GEMINI_API_KEY")
-        self.model = model or get_secret("GEMINI_MODEL", DEFAULT_GEMINI_MODEL)
+        self.api_key = api_key if api_key is not None else get_secret("ANTHROPIC_API_KEY")
+        self.model = model or get_secret("CLAUDE_MODEL", DEFAULT_CLAUDE_MODEL)
         self._client = None
         self.last_error: str | None = None
 
@@ -34,64 +49,90 @@ class Coach:
 
     def _get_client(self):
         if self._client is None:
-            from google import genai
+            import anthropic
 
-            self._client = genai.Client(api_key=self.api_key)
+            self._client = anthropic.Anthropic(api_key=self.api_key)
         return self._client
 
-    def generate_json(self, prompt: str, temperature: float = 0.4) -> dict | None:
+    def _create(self, content, *, effort: str, schema: dict | None = None, max_tokens: int = 16000):
+        """Appel Messages API. Retourne le texte de la réponse, ou None en cas d'échec."""
         if not self.enabled:
             return None
-        try:
-            from google.genai import types
+        import anthropic
 
-            resp = self._get_client().models.generate_content(
+        output_config: dict = {"effort": effort}
+        if schema is not None:
+            output_config["format"] = {"type": "json_schema", "schema": schema}
+        try:
+            resp = self._get_client().beta.messages.create(
                 model=self.model,
-                contents=prompt,
-                config=types.GenerateContentConfig(response_mime_type="application/json", temperature=temperature),
+                max_tokens=max_tokens,
+                system=SYSTEM_PROMPT,
+                messages=[{"role": "user", "content": content}],
+                output_config=output_config,
+                betas=[FALLBACK_BETA],
+                fallbacks="default",
             )
+        except anthropic.AuthenticationError:
+            self.last_error = "Clé ANTHROPIC_API_KEY invalide."
+        except anthropic.RateLimitError:
+            self.last_error = "Limite de requêtes Claude atteinte, réessaie dans un instant."
+        except anthropic.APIStatusError as exc:
+            self.last_error = f"Erreur API Claude ({exc.status_code}) : {exc.message}"
+        except anthropic.APIConnectionError:
+            self.last_error = "Impossible de joindre l'API Claude (réseau)."
+        else:
+            if resp.stop_reason == "refusal":
+                self.last_error = "Requête refusée par Claude."
+                return None
+            if resp.stop_reason == "max_tokens":
+                self.last_error = "Réponse tronquée (max_tokens)."
+                return None
             self.last_error = None
-            return parse_json(resp.text or "")
-        except Exception as exc:  # noqa: BLE001
-            self.last_error = str(exc)
-            log.warning("Appel Gemini échoué : %s", exc)
-            return None
+            return "".join(b.text for b in resp.content if b.type == "text")
+        log.warning("Appel Claude échoué : %s", self.last_error)
+        return None
+
+    def generate_json(self, prompt: str, schema: dict, effort: str = "medium") -> dict | None:
+        text = self._create(prompt, effort=effort, schema=schema)
+        return parse_json(text) if text else None
 
     # --- Cas d'usage --------------------------------------------------------
     def extract_checkin(self, text: str, age: int) -> tuple[dict, str]:
         """Extrait sommeil / FCR / VFC / énergie d'une phrase libre. → (valeurs, source)."""
-        prompt = f"""Tu es un assistant d'extraction de données physiologiques.
-Texte de l'athlète (âge {age} ans) : \"\"\"{text}\"\"\"
-Extrais uniquement les valeurs explicitement mentionnées et réponds en JSON :
-{{"sommeil": float|null (heures), "fcr": int|null (bpm), "vfc": int|null (ms), "energie": int|null (1-10), "douleurs": [liste de zones parmi {MUSCLES}]}}
-Convertis "7h30" en 7.5. Si l'athlète dit "en forme" sans chiffre, estime l'énergie (forme=8, fatigué=4, épuisé=2)."""
-        data = self.generate_json(prompt, temperature=0.0)
+        prompt = f"""Extrais les constantes physiologiques de ce check-in matinal (athlète de {age} ans).
+
+<checkin>
+{text}
+</checkin>
+
+- sommeil : durée en heures (convertis "7h30" en 7.5) ;
+- fcr : fréquence cardiaque de repos en bpm ; vfc : variabilité cardiaque en ms ;
+- energie : 1-10. Si aucun chiffre n'est donné mais un ressenti l'est, estime-la (en forme ≈ 8, fatigué ≈ 4, épuisé ≈ 2) ;
+- douleurs : zones parmi la liste autorisée uniquement.
+Mets null pour toute valeur ni mentionnée ni déductible : n'invente pas de moyenne."""
+        data = self.generate_json(prompt, CHECKIN_SCHEMA, effort="low")
         if isinstance(data, dict):
             return _clean_checkin(data), "ia"
         return extract_checkin_rules(text), "règles"
 
     def read_wod_image(self, image: bytes, mime_type: str) -> str | None:
         """Lit le tableau blanc d'une box (photo) et retourne le WOD en texte."""
-        if not self.enabled:
-            return None
-        try:
-            from google.genai import types
-
-            resp = self._get_client().models.generate_content(
-                model=self.model,
-                contents=[
-                    types.Part.from_bytes(data=image, mime_type=mime_type),
-                    "Transcris le WOD écrit sur ce tableau : un mouvement par ligne avec reps/distances/charges, précédé du format (AMRAP, EMOM, For Time…). Texte brut uniquement, sans commentaire.",
-                ],
-            )
-            self.last_error = None
-            return (resp.text or "").strip() or None
-        except Exception as exc:  # noqa: BLE001
-            self.last_error = str(exc)
-            return None
+        if mime_type not in ("image/jpeg", "image/png", "image/gif", "image/webp"):
+            mime_type = "image/jpeg"
+        content = [
+            {"type": "image", "source": {"type": "base64", "media_type": mime_type, "data": base64.standard_b64encode(image).decode()}},
+            {
+                "type": "text",
+                "text": "Transcris le WOD écrit sur ce tableau : le format (AMRAP, EMOM, For Time…) sur la première ligne, "
+                "puis un mouvement par ligne avec reps, distances et charges. Texte brut uniquement, sans commentaire.",
+            },
+        ]
+        text = self._create(content, effort="low", max_tokens=4000)
+        return text.strip() if text and text.strip() else None
 
     def generate_session(self, ctx: SessionContext) -> tuple[dict, str]:
-        data = self.generate_json(build_session_prompt(ctx), temperature=0.6)
+        data = self.generate_json(build_session_prompt(ctx), SESSION_SCHEMA, effort="medium")
         if isinstance(data, dict) and isinstance(data.get("exercices"), list) and data["exercices"]:
             return normalize_session(data), "ia"
         return rule_based_session(ctx), "règles"
@@ -132,6 +173,43 @@ MUSCLES = [
     "Genoux",
     "Mollets",
 ]
+
+CHECKIN_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "sommeil": _NULLABLE_NUMBER,
+        "fcr": _NULLABLE_INT,
+        "vfc": _NULLABLE_INT,
+        "energie": _NULLABLE_INT,
+        "douleurs": {"type": "array", "items": {"type": "string", "enum": MUSCLES}},
+    },
+    "required": ["sommeil", "fcr", "vfc", "energie", "douleurs"],
+    "additionalProperties": False,
+}
+
+SESSION_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "titre": {"type": "string"},
+        "message": {"type": "string"},
+        "exercices": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "nom": {"type": "string"},
+                    "series": {"type": "integer"},
+                    "reps": {"type": "string"},
+                    "poids": {"type": "number"},
+                },
+                "required": ["nom", "series", "reps", "poids"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    "required": ["titre", "message", "exercices"],
+    "additionalProperties": False,
+}
 
 _MUSCLE_KEYWORDS = {
     "épaule": "Épaules",
@@ -233,7 +311,7 @@ def build_session_prompt(ctx: SessionContext) -> str:
         extras.append(f"Séances récentes : {ctx.recent}")
     contexte = "\n".join(f"- {e}" for e in extras) or "- (pas d'historique)"
 
-    return f"""Tu es un coach expert en physiologie de l'endurance et en entraînement hybride (triathlon, trail, cyclisme, Hyrox).
+    return f"""Construis la séance du jour de l'athlète.
 
 État de l'athlète ce matin :
 - Sommeil : {ctx.sommeil} h
@@ -249,8 +327,7 @@ Règles strictes :
 3. Objectif de renforcement → mouvements de PPG spécifiques à l'endurance (squat excentrique, soulevé de terre partiel, mollets sur step, gainage dynamique…).
 4. Pour un bloc cardio, mets la durée en minutes dans "reps" (ex : "20 min Z2") et 1 dans "series".
 
-Réponds STRICTEMENT en JSON :
-{{"titre": "Nom de la séance", "message": "Analyse physiologique courte et encouragement (3 phrases max)", "exercices": [{{"nom": "…", "series": 3, "reps": "10", "poids": 0}}]}}"""
+Renseigne "titre" (nom de la séance), "message" (analyse physiologique et encouragement, 3 phrases maximum) et "exercices" (poids en kg, 0 si poids du corps)."""
 
 
 def normalize_session(data: dict) -> dict:
