@@ -1,2 +1,11 @@
 .streamlit/secrets.toml
 __pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
+# Données locales (mode démo / sans Google Sheets) et jetons Garmin
+data/
+.garminconnect/
+garmin_tokens.json
