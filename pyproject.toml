@@ -1,0 +1,17 @@
+[project]
+name = "dynamic-hybrid-coach"
+version = "4.0.0"
+description = "Coaching hybride (endurance + PPG) piloté par la donnée : readiness, charge Banister, IA Gemini et synchronisation Garmin."
+requires-python = ">=3.12"
+
+[tool.ruff]
+line-length = 200
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM"]
+ignore = ["E501", "SIM105", "B008", "B905"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = ["ignore::DeprecationWarning"]
