@@ -29,12 +29,32 @@ div[data-testid="stMetricLabel"] p {color: #8B949E; font-size: 0.8rem;}
 .pill {display:inline-block; padding:2px 10px; border-radius:999px; font-size:0.75rem; font-weight:600;
        border:1px solid rgba(255,255,255,0.15); margin-right:6px;}
 .hero {font-size: 0.95rem; color:#8B949E; margin-top:-0.6rem;}
+.kpi {background: linear-gradient(160deg, rgba(255,255,255,0.045), rgba(255,255,255,0.015));
+      border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 16px 18px; height: 100%;}
+.kpi .t {color:#8B949E; font-size:0.78rem; text-transform: uppercase; letter-spacing: .06em;}
+.kpi .v {font-size: 2rem; font-weight: 700; line-height: 1.15; margin: 4px 0;}
+.kpi .s {font-size: 0.85rem; color:#C9D1D9;}
+.kpi .bar {height: 4px; border-radius: 4px; margin-top: 10px;}
+.banner {border-radius: 16px; padding: 22px 26px; margin-bottom: 8px;
+         background: radial-gradient(1200px 300px at 0% 0%, rgba(0,209,255,0.18), transparent),
+                     linear-gradient(135deg, #111827, #0E1117);
+         border: 1px solid rgba(0,209,255,0.25);}
+.banner h1 {margin: 0; font-size: 2.1rem;}
+.banner p {color:#C9D1D9; margin: 6px 0 0 0; font-size: 1.02rem;}
+.step {text-align:center; padding: 10px 6px;}
+.step .i {font-size: 1.8rem;}
+.step .n {font-weight: 700; margin-top: 4px;}
+.step .d {font-size: 0.8rem; color:#8B949E;}
 </style>
 """
 
 
 def inject() -> None:
     st.markdown(CSS, unsafe_allow_html=True)
+
+
+def kpi(title: str, value: str, sub: str = "", color: str = ACCENT) -> str:
+    return f"<div class='kpi'><div class='t'>{title}</div><div class='v' style='color:{color}'>{value}</div><div class='s'>{sub}</div><div class='bar' style='background:{color}'></div></div>"
 
 
 def pill(text: str, color: str = ACCENT) -> str:
@@ -79,5 +99,5 @@ def gauge(score: int, title: str = "Readiness") -> go.Figure:
             },
         )
     )
-    fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", height=260, margin=dict(t=40, b=0, l=20, r=20))
+    fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", height=260, margin=dict(t=40, b=0, l=40, r=40))
     return fig

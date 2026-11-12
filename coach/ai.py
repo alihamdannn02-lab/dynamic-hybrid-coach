@@ -215,6 +215,9 @@ class SessionContext:
     acwr: float | None = None
     vfc_status: str | None = None
     body_battery: int | None = None
+    risk: int | None = None
+    risk_drivers: str = ""
+    sleep_debt: float | None = None
     recent: str = ""
 
 
@@ -230,6 +233,10 @@ def build_session_prompt(ctx: SessionContext) -> str:
         extras.append(f"Statut VFC Garmin : {ctx.vfc_status}")
     if ctx.body_battery is not None:
         extras.append(f"Body Battery Garmin : {ctx.body_battery}/100")
+    if ctx.risk is not None:
+        extras.append(f"Indice de risque de blessure : {ctx.risk}/100" + (f" (facteurs : {ctx.risk_drivers})" if ctx.risk_drivers else ""))
+    if ctx.sleep_debt is not None:
+        extras.append(f"Dette de sommeil sur 7 jours : {ctx.sleep_debt:.1f} h")
     if ctx.recent:
         extras.append(f"Séances récentes : {ctx.recent}")
     contexte = "\n".join(f"- {e}" for e in extras) or "- (pas d'historique)"
@@ -245,7 +252,7 @@ Indicateurs de charge :
 {contexte}
 
 Règles strictes :
-1. Énergie < 5, sommeil < 6 h, readiness < 50, TSB < -30 ou ACWR > 1.5 → impose une récupération active ou du Z1/LISS, quel que soit l'objectif, et explique pourquoi.
+1. Énergie < 5, sommeil < 6 h, readiness < 50, TSB < -30, ACWR > 1.5 ou risque de blessure ≥ 50 → impose une récupération active ou du Z1/LISS, quel que soit l'objectif, et explique pourquoi.
 2. Douleurs aux membres inférieurs (mollets, genoux, ischios) → privilégie le vélo ou la natation plutôt que la course à pied.
 3. Objectif de renforcement → mouvements de PPG spécifiques à l'endurance (squat excentrique, soulevé de terre partiel, mollets sur step, gainage dynamique…).
 4. Pour un bloc cardio, mets la durée en minutes dans "reps" (ex : "20 min Z2") et 1 dans "series".

@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import asdict, dataclass, field
-from datetime import date, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from . import schema
@@ -47,6 +47,12 @@ class Wellness:
     training_readiness: int | None = None
     training_readiness_level: str | None = None
     stress: int | None = None
+    deep_min: int | None = None
+    light_min: int | None = None
+    rem_min: int | None = None
+    awake_min: int | None = None
+    coucher: str | None = None
+    lever: str | None = None
     errors: list[str] = field(default_factory=list)
 
     @property
@@ -183,6 +189,73 @@ def parse_sleep(sleep: dict | None) -> tuple[float | None, int | None, int | Non
     overall = scores.get("overall") or {}
     score = _int(overall.get("value"))
     return hours, score, _int(sleep.get("avgOvernightHrv")), _int(sleep.get("restingHeartRate"))
+
+
+def _clock(ms: Any) -> str | None:
+    """Horodatage Garmin « local » (ms, encodé comme UTC) → 'HH:MM'."""
+    v = _num(ms)
+    if not v:
+        return None
+    return datetime.fromtimestamp(v / 1000, tz=UTC).strftime("%H:%M")
+
+
+def parse_sleep_details(sleep: dict | None) -> dict:
+    """Phases (minutes) et horaires de la nuit."""
+    if not isinstance(sleep, dict):
+        return {}
+    dto = sleep.get("dailySleepDTO") or {}
+    minutes = {k: _int((_num(dto.get(f"{k}SleepSeconds")) or 0) / 60) if dto.get(f"{k}SleepSeconds") is not None else None for k in ("deep", "light", "rem", "awake")}
+    return {
+        "deep_min": minutes["deep"],
+        "light_min": minutes["light"],
+        "rem_min": minutes["rem"],
+        "awake_min": minutes["awake"],
+        "coucher": _clock(dto.get("sleepStartTimestampLocal")),
+        "lever": _clock(dto.get("sleepEndTimestampLocal")),
+    }
+
+
+def wellness_to_checkin_row(w: Wellness, age: int, energie: int | None = None) -> list:
+    """Ligne ``Historique_Checkin`` à partir d'une nuit Garmin."""
+    e = energie if energie is not None else (w.energie_suggeree or "")
+    blank = lambda v: "" if v is None else v  # noqa: E731
+    return schema.pad_row(
+        schema.CHECKIN,
+        [
+            w.date,
+            blank(w.sommeil_h),
+            blank(w.vfc),
+            blank(w.fcr),
+            e,
+            "Aucun",
+            age,
+            blank(w.body_battery),
+            blank(w.score_sommeil),
+            "Garmin",
+            blank(w.deep_min),
+            blank(w.light_min),
+            blank(w.rem_min),
+            blank(w.awake_min),
+            blank(w.coucher),
+            blank(w.lever),
+            blank(w.stress),
+        ],
+    )
+
+
+def parse_race_predictions(data: Any) -> dict[str, float]:
+    """Prédictions de course Garmin → {épreuve: minutes}."""
+    if isinstance(data, list):
+        data = data[-1] if data else None
+    if not isinstance(data, dict):
+        return {}
+    keys = {"5 km": "time5K", "10 km": "time10K", "Semi-marathon": "timeHalfMarathon", "Marathon": "timeMarathon"}
+    out = {}
+    for label, key in keys.items():
+        v = _num(data.get(key))
+        if v:
+            out[label] = v / 60
+    return out
 
 
 def parse_hrv(hrv: dict | None) -> tuple[int | None, str | None, int | None]:
@@ -376,7 +449,7 @@ class GarminSession:
             errors.append(label)
             return None
 
-    def fetch_wellness(self, day: date | None = None) -> Wellness:
+    def fetch_wellness(self, day: date | None = None, light: bool = False) -> Wellness:
         if not self.api:
             raise GarminError("Non connecté à Garmin.")
         d = (day or date.today()).isoformat()
@@ -385,6 +458,8 @@ class GarminSession:
 
         sleep = self._call(err, "sommeil", api.get_sleep_data, d)
         w.sommeil_h, w.score_sommeil, vfc_sleep, rhr_sleep = parse_sleep(sleep)
+        for key, value in parse_sleep_details(sleep).items():
+            setattr(w, key, value)
 
         hrv = self._call(err, "VFC", api.get_hrv_data, d)
         w.vfc, w.vfc_status, w.vfc_hebdo = parse_hrv(hrv)
@@ -399,9 +474,33 @@ class GarminSession:
         if w.stress is not None and w.stress < 0:
             w.stress = None
 
-        tr = self._call(err, "Training Readiness", api.get_training_readiness, d)
-        w.training_readiness, w.training_readiness_level = parse_training_readiness(tr)
+        if not light:
+            tr = self._call(err, "Training Readiness", api.get_training_readiness, d)
+            w.training_readiness, w.training_readiness_level = parse_training_readiness(tr)
+        else:
+            # Historique : la valeur maximale du jour reflète mieux l'état au réveil.
+            w.body_battery = _int(summary.get("bodyBatteryHighestValue")) or w.body_battery
         return w
+
+    def fetch_history(self, days: int, skip: set[str] | None = None, progress=None) -> list[Wellness]:
+        """Nuits des ``days`` derniers jours (hors dates déjà présentes dans ``skip``)."""
+        skip = skip or set()
+        today = date.today()
+        dates = [today - timedelta(days=k) for k in range(days - 1, -1, -1)]
+        dates = [d for d in dates if d.isoformat() not in skip]
+        out = []
+        for i, d in enumerate(dates):
+            w = self.fetch_wellness(d, light=True)
+            if w.has_data:
+                out.append(w)
+            if progress:
+                progress((i + 1) / max(1, len(dates)), d)
+        return out
+
+    def fetch_race_predictions(self) -> dict[str, float]:
+        if not self.api:
+            raise GarminError("Non connecté à Garmin.")
+        return parse_race_predictions(self._call([], "prédictions de course", self.api.get_race_predictions))
 
     def fetch_activities(self, start: date, end: date) -> list[Activity]:
         if not self.api:
