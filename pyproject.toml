@@ -1,6 +1,6 @@
 [project]
 name = "dynamic-hybrid-coach"
-version = "4.0.0"
+version = "5.0.0"
 description = "Coaching hybride (endurance + PPG) piloté par la donnée : readiness, charge Banister, IA Gemini et synchronisation Garmin."
 requires-python = ">=3.12"
 

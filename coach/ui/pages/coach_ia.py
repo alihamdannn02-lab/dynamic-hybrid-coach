@@ -127,6 +127,10 @@ def _context_defaults() -> dict:
         out["acwr"] = acwr_status(daily).acwr
         recent = sessions[sessions["Sport_Discipline"] != "Repos"].tail(5)
         out["recent"] = "; ".join(f"{d:%d/%m} {t} ({int(m)} min, RPE {int(r)})" for d, t, m, r in zip(recent["Date"], recent["Type_Seance"], recent["Duree"], recent["Session_RPE"]))
+    a = state.analytics()
+    out["risk"] = a.risk.score if not a.risk.timeline.empty else None
+    out["risk_drivers"] = ", ".join(f.name.lower() for f in a.risk.drivers)
+    out["sleep_debt"] = a.sleep_summary.debt_h
     return out
 
 
@@ -155,6 +159,10 @@ def _generator() -> None:
             indicators.append(f"TSB **{d['tsb']:+.0f}**")
         if d["acwr"] is not None:
             indicators.append(f"ACWR **{d['acwr']:.2f}**")
+        if d["risk"] is not None:
+            indicators.append(f"Risque blessure **{d['risk']}/100**")
+        if d["sleep_debt"] is not None:
+            indicators.append(f"Dette de sommeil **{d['sleep_debt']:.1f} h**")
         if w is not None and w.vfc_status:
             indicators.append(f"VFC Garmin **{w.vfc_status.title()}**")
         if indicators:
@@ -171,6 +179,9 @@ def _generator() -> None:
         vfc_status=w.vfc_status if w else None,
         body_battery=w.body_battery if w else None,
         recent=d["recent"],
+        risk=d["risk"],
+        risk_drivers=d["risk_drivers"],
+        sleep_debt=d["sleep_debt"],
     )
     if must_recover(ctx):
         st.warning("⚠️ Tes indicateurs imposent une séance de récupération, quel que soit l'objectif choisi.")

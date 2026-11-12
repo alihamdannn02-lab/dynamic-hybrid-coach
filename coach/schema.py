@@ -60,6 +60,13 @@ CHECKIN_COLUMNS = [
     "Body_Battery",
     "Score_Sommeil",
     "Source",
+    "Deep_Min",
+    "Light_Min",
+    "REM_Min",
+    "Awake_Min",
+    "Coucher",
+    "Lever",
+    "Stress",
 ]
 
 COLUMNS = {
@@ -86,7 +93,7 @@ NUMERIC = {
         "Z5_Min",
         "Denivele_M",
     ],
-    CHECKIN: ["Heures_Sommeil", "VFC", "FC_Repos", "Niveau_Energie", "Age", "Body_Battery", "Score_Sommeil"],
+    CHECKIN: ["Heures_Sommeil", "VFC", "FC_Repos", "Niveau_Energie", "Age", "Body_Battery", "Score_Sommeil", "Deep_Min", "Light_Min", "REM_Min", "Awake_Min", "Stress"],
 }
 
 JOURS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
