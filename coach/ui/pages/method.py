@@ -49,9 +49,10 @@ PRIVACY = """
 """
 
 
-def render() -> None:
-    st.title("📚 Méthodologie & sources")
-    st.markdown("<p class='hero'>Chaque chiffre affiché repose sur une méthode publiée. Voici lesquelles, et où elles s'arrêtent.</p>", unsafe_allow_html=True)
+def render(embedded: bool = False) -> None:
+    if not embedded:
+        st.title("📚 Méthodologie & sources")
+        st.markdown("<p class='hero'>Chaque chiffre affiché repose sur une méthode publiée. Voici lesquelles, et où elles s'arrêtent.</p>", unsafe_allow_html=True)
     st.subheader("Les modèles")
     st.markdown(MODELS)
     st.subheader("Données & confidentialité")

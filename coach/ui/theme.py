@@ -17,7 +17,7 @@ SPORT_COLORS = ["#00D1FF", "#FF6B6B", "#58D68D", "#F4D03F", "#B388FF", "#FF9F43"
 CSS = """
 <style>
 #MainMenu, footer {visibility: hidden;}
-.block-container {padding-top: 2rem; max-width: 1100px;}
+.block-container {padding-top: 3.5rem; max-width: 1100px;}
 div[data-testid="stMetric"] {
     background: rgba(255,255,255,0.03);
     border: 1px solid rgba(255,255,255,0.08);

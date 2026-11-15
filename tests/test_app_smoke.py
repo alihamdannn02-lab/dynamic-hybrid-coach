@@ -6,7 +6,7 @@ from __future__ import annotations
 import pytest
 from streamlit.testing.v1 import AppTest
 
-PAGES = ["home", "readiness", "session", "insights", "sleep_page", "risk_page", "predictions", "coach_ia", "garmin_page", "method"]
+PAGES = ["today", "training", "analyses", "settings"]
 
 
 def _page_script(module: str, demo_mode: bool = False) -> None:  # exécuté par AppTest comme un script autonome
@@ -14,7 +14,7 @@ def _page_script(module: str, demo_mode: bool = False) -> None:  # exécuté par
 
     import streamlit as st
 
-    keys = ["home", "readiness", "session", "insights", "sleep", "risk", "predict", "coach", "garmin", "method"]
+    keys = ["today", "training", "analyses", "settings"]
     pages = {k: st.Page(lambda: None, title=k, url_path=k) for k in keys}
     st.navigation(list(pages.values()), position="hidden")
     st.session_state["_pages"] = pages
@@ -74,9 +74,9 @@ def test_full_app_boots(data_dir):
 
 
 def test_checkin_saves_row(data_dir):
-    at = _run("readiness")
-    at.button[-1].click().run()
-    assert not at.exception
+    at = _run("today")
+    next(b for b in at.button if b.label == "Enregistrer").click().run()
+    assert not at.exception, [e.value for e in at.exception]
     from coach import schema
     from coach.storage import LocalStorage
 
@@ -88,7 +88,7 @@ def test_rule_based_session_generation(data_dir):
     from coach.storage import LocalStorage
 
     demo.seed(LocalStorage(data_dir))
-    at = _run("coach_ia")
+    at = _run("training")
     gen = next(b for b in at.button if "Générer" in b.label)
     gen.click().run()
     assert not at.exception
@@ -149,15 +149,46 @@ def test_garmin_history_sync_in_demo_replaces_simulated_athlete(data_dir, monkey
 
 def test_password_protects_owner_data(data_dir, monkeypatch):
     monkeypatch.setenv("APP_PASSWORD", "s3cret")
-    at = AppTest.from_file("../app.py", default_timeout=60)
-    at.run()
+    at = _run("settings")
     assert not at.exception
     pwd = next(t for t in at.text_input if t.placeholder == "Mot de passe")
     pwd.set_value("wrong")
-    next(b for b in at.button if "Déverrouiller" in b.label).click().run()
+    next(b for b in at.button if b.label == "Accéder à mes données").click().run()
     assert any("incorrect" in e.value for e in at.error)
     assert not at.session_state["owner_unlocked"] if "owner_unlocked" in at.session_state else True
     pwd = next(t for t in at.text_input if t.placeholder == "Mot de passe")
     pwd.set_value("s3cret")
-    next(b for b in at.button if "Déverrouiller" in b.label).click().run()
+    next(b for b in at.button if b.label == "Accéder à mes données").click().run()
     assert at.session_state["owner_unlocked"] is True
+
+
+def test_english_switch_translates_main_page(data_dir):
+    from coach import demo
+    from coach.storage import LocalStorage
+
+    demo.seed(LocalStorage(data_dir))
+    at = AppTest.from_function(_page_script, kwargs={"module": "today"}, default_timeout=60)
+    at.session_state["lang"] = "EN"
+    at.run()
+    assert not at.exception
+    html = " ".join(m.value for m in at.markdown)
+    assert "Today's call" in html and "Ma décision" not in html
+
+
+def test_settings_survive_page_changes(data_dir):
+    """Les réglages sont recopiés dans des clés durables (Streamlit efface l'état des widgets hors page)."""
+    at = _run("settings")
+    age = next(n for n in at.number_input if n.label == "Âge")
+    age.set_value(41).run()
+    assert at.session_state["age"] == 41
+
+
+def test_decision_logic():
+    from coach.ui.pages.today import decision_key, freshness_key
+
+    assert decision_key(85, 10, -5, False) == "go"
+    assert decision_key(85, 10, -5, False, sleep_debt=6) == "easy.sleep"  # la dette de sommeil freine
+    assert decision_key(85, 60, -5, False) == "rest"  # risque élevé
+    assert decision_key(85, 10, -5, True) == "rest"  # VFC sous la norme
+    assert decision_key(65, 10, -5, False) == "easy"
+    assert [freshness_key(v) for v in (15, 0, -20, -40)] == ["fresh", "ok", "tired", "very"]

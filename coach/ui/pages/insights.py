@@ -1,4 +1,4 @@
-"""Page 3 — Cockpit Performance : readiness, charge, Banister, ACWR, PPG, zones."""
+"""Analyses › Forme & charge : volume, Banister, ACWR, disciplines, musculation, intensité."""
 
 from __future__ import annotations
 
@@ -8,49 +8,14 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from ... import schema
-from ...readiness import readiness_from_history
 from ...training_load import acwr_status, daily_load, performance_manager, sessions_from_history, tsb_label
 from .. import state, theme
 
-COMP_LABELS = {"sommeil": "Sommeil", "energie": "Énergie", "fcr": "FC repos", "vfc": "VFC"}
 
-
-def _readiness_card(checkins: pd.DataFrame) -> None:
-    r = readiness_from_history(checkins)
-    if r is None:
-        st.info("Aucun check-in pour le moment : commence par **Morning Readiness**.")
-        return
-    last_date = checkins["Date"].max().strftime("%d/%m")
-    with st.container(border=True):
-        g, t = st.columns([1, 1.2], vertical_alignment="center")
-        g.plotly_chart(theme.gauge(r.score, f"Readiness · {last_date}"), config={"displayModeBar": False})
-        with t:
-            st.markdown(r.advice)
-            for key, label in COMP_LABELS.items():
-                v = r.components[key]
-                st.progress(int(v), text=f"{label} — {v:.0f}/100")
-            st.caption("Baseline personnelle" if r.baseline.personal else "Normes de référence (baseline en construction)")
-
-
-def _recovery_trends(checkins: pd.DataFrame) -> None:
-    if len(checkins) < 3:
-        return
-    df = checkins.sort_values("Date").tail(60).copy()
-    df["VFC_7j"] = df["VFC"].rolling(7, min_periods=3).mean()
-    fig = go.Figure()
-    fig.add_trace(go.Bar(x=df["Date"], y=df["VFC"], name="VFC (ms)", marker_color="rgba(0,209,255,0.35)"))
-    fig.add_trace(go.Scatter(x=df["Date"], y=df["VFC_7j"], name="VFC moyenne 7 j", line=dict(color=theme.ACCENT, width=3)))
-    fig.add_trace(go.Scatter(x=df["Date"], y=df["FC_Repos"], name="FC repos (bpm)", yaxis="y2", line=dict(color=theme.RED, width=2, dash="dot")))
-    fig.update_layout(yaxis=dict(title="VFC (ms)"), yaxis2=dict(title="FCR (bpm)", overlaying="y", side="right", showgrid=False))
-    st.plotly_chart(theme.style(fig, 300))
-
-
-def render() -> None:
-    st.title("📊 Cockpit Performance")
+def render(embedded: bool = False) -> None:
+    if not embedded:
+        st.title("📊 Cockpit Performance")
     realise = state.load(schema.REALISE)
-    checkins = state.load(schema.CHECKIN)
-
-    _readiness_card(checkins)
 
     if realise.empty:
         st.info("Aucune séance enregistrée pour le moment.")
@@ -75,7 +40,7 @@ def render() -> None:
     k[3].metric("D+", f"{int(this_week['Denivele'].sum())} m")
     k[4].metric("Charge", f"{this_week['TSS'].sum():.0f} TSS", f"{this_week['TSS'].sum() - prev_week['TSS'].sum():+.0f}")
 
-    tab_load, tab_sport, tab_ppg, tab_zones, tab_recov = st.tabs(["🧬 Forme & charge", "🏊🚴🏃 Disciplines", "🏋️ PPG", "❤️ Intensité", "💤 Récupération"])
+    tab_load, tab_sport, tab_ppg, tab_zones = st.tabs(["🧬 Courbe de forme", "🏊🚴🏃 Disciplines", "🏋️ Musculation", "❤️ Intensité"])
 
     with tab_load:
         if len(pmc) < 7:
@@ -175,14 +140,3 @@ def render() -> None:
                     st.warning("Beaucoup de Z3 (« zone grise ») : facilite tes séances faciles, durcis les dures.")
                 else:
                     st.info("Modèle **pyramidal** : volume bas dominant, peu de haute intensité.")
-
-    with tab_recov:
-        if len(checkins) < 3:
-            st.caption("Il faut au moins 3 check-ins pour afficher les tendances.")
-        else:
-            _recovery_trends(checkins)
-            c = checkins.sort_values("Date").tail(7)
-            k = st.columns(3)
-            k[0].metric("Sommeil moyen (7 j)", f"{c['Heures_Sommeil'].mean():.1f} h")
-            k[1].metric("VFC moyenne (7 j)", f"{c['VFC'].mean():.0f} ms")
-            k[2].metric("FCR moyenne (7 j)", f"{c['FC_Repos'].mean():.0f} bpm")

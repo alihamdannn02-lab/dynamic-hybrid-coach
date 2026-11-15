@@ -167,9 +167,10 @@ def _race_times(a: state.Analytics) -> None:
             st.caption("Pas de prédiction disponible sur ce modèle de montre.")
 
 
-def render() -> None:
-    st.title("🔮 Prédictions")
-    st.markdown("<p class='hero'>Anticiper plutôt que constater : ta récupération de demain, ta forme le jour J, ton potentiel en course.</p>", unsafe_allow_html=True)
+def render(embedded: bool = False) -> None:
+    if not embedded:
+        st.title("🔮 Prédictions")
+        st.markdown("<p class='hero'>Anticiper plutôt que constater : ta récupération de demain, ta forme le jour J, ton potentiel en course.</p>", unsafe_allow_html=True)
     a = state.analytics()
     _hrv_forecast(a)
     st.divider()

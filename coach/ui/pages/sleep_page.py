@@ -117,12 +117,13 @@ def _link_section(a: state.Analytics) -> None:
         st.caption("Corrélation ≠ causalité : la charge de la veille joue aussi. Le modèle de l'onglet 🔮 Prédictions isole chaque effet.")
 
 
-def render() -> None:
-    st.title("😴 Sommeil & VFC")
-    st.markdown(
-        "<p class='hero'>Besoin de sommeil réglable dans ton profil (barre latérale). La récupération se joue la nuit : quantité, régularité, architecture du sommeil et réponse de ton système nerveux autonome.</p>",
-        unsafe_allow_html=True,
-    )
+def render(embedded: bool = False) -> None:
+    if not embedded:
+        st.title("😴 Sommeil & VFC")
+        st.markdown(
+            "<p class='hero'>Besoin de sommeil réglable dans ton profil (barre latérale). La récupération se joue la nuit : quantité, régularité, architecture du sommeil et réponse de ton système nerveux autonome.</p>",
+            unsafe_allow_html=True,
+        )
     a = state.analytics()
     st.subheader("Sommeil")
     _sleep_section(a)

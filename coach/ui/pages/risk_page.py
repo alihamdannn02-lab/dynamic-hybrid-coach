@@ -37,9 +37,10 @@ l'application pourra apprendre à terme en enregistrant les blessures déclarée
 """
 
 
-def render() -> None:
-    st.title("🛡️ Risque de blessure")
-    st.markdown("<p class='hero'>Six signaux issus de la littérature, combinés en un indice où chaque point est traçable jusqu'à sa cause.</p>", unsafe_allow_html=True)
+def render(embedded: bool = False) -> None:
+    if not embedded:
+        st.title("🛡️ Risque de blessure")
+        st.markdown("<p class='hero'>Six signaux issus de la littérature, combinés en un indice où chaque point est traçable jusqu'à sa cause.</p>", unsafe_allow_html=True)
     a = state.analytics()
     rep = a.risk
     if rep.timeline.empty:
