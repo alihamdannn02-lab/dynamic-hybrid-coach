@@ -34,7 +34,7 @@ def _sleep_section(a: state.Analytics) -> None:
     k[3].metric("Jetlag social", f"{ss.social_jetlag:.0f} min" if ss.social_jetlag is not None else "—", "semaine vs week-end", delta_color="off", delta_arrow="off")
 
     for level, msg in ss.insights:
-        getattr(st, level)(msg)
+        theme.callout(level, msg)
 
     tab_arch, tab_window = st.tabs(["Architecture des nuits", "Fenêtre de sommeil"])
     with tab_arch:

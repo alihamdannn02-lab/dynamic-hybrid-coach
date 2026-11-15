@@ -57,6 +57,18 @@ def kpi(title: str, value: str, sub: str = "", color: str = ACCENT) -> str:
     return f"<div class='kpi'><div class='t'>{title}</div><div class='v' style='color:{color}'>{value}</div><div class='s'>{sub}</div><div class='bar' style='background:{color}'></div></div>"
 
 
+CALLOUT = {"error": (RED, "⛔"), "warning": (AMBER, "⚠️"), "success": (GREEN, "✅"), "info": (BLUE, "💡")}
+
+
+def callout(level: str, message: str) -> None:
+    """Conseil coloré (st.error reste réservé aux vraies erreurs de l'application)."""
+    color, icon = CALLOUT.get(level, CALLOUT["info"])
+    st.markdown(
+        f"<div style='border-left:4px solid {color}; background:{color}1A; padding:10px 14px; border-radius:8px; margin:6px 0'>{icon} {message}</div>",
+        unsafe_allow_html=True,
+    )
+
+
 def pill(text: str, color: str = ACCENT) -> str:
     return f"<span class='pill' style='color:{color}; border-color:{color}55'>{text}</span>"
 
