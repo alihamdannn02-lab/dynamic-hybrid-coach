@@ -42,7 +42,7 @@ def _programme_rows(df: pd.DataFrame, semaine: int, jour: str, type_seance: str,
     return rows
 
 
-def _planner() -> None:
+def planner() -> None:
     prog = state.load(schema.PROGRAMME)
     seances = list(dict.fromkeys(prog["Type_Seance"].dropna())) if not prog.empty else []
     exos = sorted(set(prog["Exercice_WOD"].dropna())) if not prog.empty else []
@@ -134,7 +134,7 @@ def _context_defaults() -> dict:
     return out
 
 
-def _generator() -> None:
+def generator() -> None:
     coach = state.coach()
     if not coach.enabled:
         st.info("🔌 `GEMINI_API_KEY` non configurée : le coach utilise sa bibliothèque de séances basée sur des règles physiologiques.")
@@ -217,12 +217,3 @@ def _generator() -> None:
     if c2.button("🔄 Propose-moi autre chose", width="stretch"):
         st.session_state["seance_ia"] = None
         st.rerun()
-
-
-def render() -> None:
-    st.title("🧠 Coach IA & Programme")
-    tab_ia, tab_plan = st.tabs(["🤖 Génération IA", "📝 Planificateur"])
-    with tab_ia:
-        _generator()
-    with tab_plan:
-        _planner()

@@ -13,15 +13,14 @@ ou je récupère ?* Et surtout : *qu'est-ce qui, dans mes données, explique cet
 
 ## 🚀 Ce que fait l'application
 
-| Module | Ce qu'il apporte |
+Quatre pages, en français ou en anglais (bouton FR / EN) :
+
+| Page | Ce qu'on y trouve |
 |---|---|
-| 🏠 **Décision du jour** | Readiness, risque de blessure, forme (TSB), VFC et sommeil réunis en une recommandation argumentée. |
-| 😴 **Sommeil & VFC** | Dette de sommeil, régularité des horaires, architecture (profond / REM), jetlag social. VFC analysée selon Plews/Buchheit : ln rMSSD, moyenne 7 j, plage normale personnelle, CV. Mesure de **ton** effet sommeil → VFC. |
-| 🛡️ **Risque de blessure** | Indice explicable à 6 facteurs (ACWR EWMA, monotonie, VFC, FC repos, sommeil, douleurs). Chaque point est traçable jusqu'à sa cause, historisé jour par jour, limites assumées. |
-| 🔮 **Prédictions** | Modèle personnel de la VFC de demain (ridge, **validation walk-forward**, erreur affichée face à une référence naïve) avec simulateur « et si je dors 6 h ? ». Planificateur d'affûtage par projection de Banister. Temps de course (Riegel vs prédicteur Garmin). |
-| 📊 **Cockpit** | Performance Manager (CTL/ATL/TSB), volume par discipline, 1RM estimé, distribution d'intensité (polarisé / pyramidal). |
-| ⌚ **Garmin Connect** | Connexion (MFA), synchronisation de 14 à 90 jours d'historique (nuits, phases, horaires, VFC, FC repos, Body Battery, stress, activités) en un clic. **Lecture seule**, garantie par un test. |
-| 🧠 **Coach IA** | Séance générée par Google Gemini à partir de tous ces indicateurs (le risque ≥ 50 impose une récupération), lecture de photos de WOD. |
+| 🏠 **Aujourd'hui** | La décision du jour en langage simple, 4 indicateurs (récupération, sommeil, risque de blessure, fraîcheur) avec un bouton « Pourquoi ? » pour chacun, la synchronisation Garmin et le ressenti du jour en un clic. |
+| 🏃 **Entraînement** | Séance du jour (endurance, WOD avec lecture de photo par l'IA, musculation série par série), Coach IA (Gemini), programme. |
+| 📈 **Analyses** | Forme & charge (Banister, ACWR, disciplines, 1RM, intensité) · Sommeil & VFC (méthode Plews/Buchheit) · Risque de blessure (indice explicable à 6 facteurs) · Prédictions (VFC de demain validée en walk-forward, planificateur d'affûtage, temps de course). Chaque onglet commence par un résumé « En bref ». |
+| ⚙️ **Réglages** | Connexion Garmin (lecture seule, MFA, historique 14-90 jours), profil, accès aux données, méthodologie & sources. |
 
 ## 🔬 Rigueur
 - **Méthodes publiées** : Banister, Foster, Gabbett, Williams, Plews, Buchheit, Bosquet, Riegel. Sources dans l'onglet *Méthodologie & sources*.
@@ -54,7 +53,7 @@ Copie `.streamlit/secrets.toml.example` en `.streamlit/secrets.toml` :
 
 ## 🗂️ Architecture
 ```
-app.py                  # navigation, accès (démo / propriétaire)
+app.py                  # navigation (4 pages), langue FR / EN
 coach/
   readiness.py          # readiness vs baseline personnelle
   training_load.py      # TSS (sRPE), CTL/ATL/TSB, ACWR, zones FC
@@ -66,7 +65,7 @@ coach/
   ai.py                 # Gemini + repli par règles
   storage.py            # Google Sheets / CSV / mémoire (démo)
   demo.py               # athlète simulé physiologiquement cohérent
-  ui/                   # thème et pages Streamlit
+  ui/                   # thème, traductions (i18n.py), pages Streamlit
 tests/                  # modèles, parseurs, flux Garmin simulé, chaque page
 ```
 

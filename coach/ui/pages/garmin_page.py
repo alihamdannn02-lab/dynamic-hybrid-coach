@@ -88,7 +88,7 @@ def _wellness() -> None:
             if val is not None:
                 st.session_state[key] = cast(val)
         st.session_state["ck_source"] = "Garmin"
-        st.switch_page(st.session_state["_pages"]["readiness"])
+        st.switch_page(st.session_state["_pages"]["today"])
 
 
 def _activities() -> None:
@@ -160,71 +160,75 @@ def _activities() -> None:
             st.rerun()
 
 
-def _history() -> None:
+def run_sync(days: int, progress=None) -> tuple[int, int]:
+    """Importe nuits + activités des ``days`` derniers jours, sans doublon. → (nuits, activités)."""
     garmin = state.garmin()
-    st.subheader("🗂️ Synchroniser mon historique")
-    st.caption(
-        "Importe d'un coup tes nuits (durée, phases, horaires, VFC, FC repos, Body Battery, stress) et tes activités : "
-        "baselines personnelles, indice de risque et modèle prédictif sont actifs immédiatement."
-    )
+    if state.is_demo() and not st.session_state.get("demo_replaced"):
+        state.storage().reset()  # les données du visiteur remplacent l'athlète simulé, dans sa session
+        st.session_state["demo_replaced"] = True
+        state.clear_cache()
+    step = progress or (lambda p, d: None)
+    nights = garmin.fetch_history(days, skip=state.checkin_dates(), progress=lambda p, d: step(p * 0.8, d))
+    acts = garmin.fetch_activities(date.today() - timedelta(days=days - 1), date.today())
+    already = state.imported_activity_ids()
+    new_acts = [a for a in acts if a.activity_id not in already]
+    if nights:
+        state.append(schema.CHECKIN, [wellness_to_checkin_row(w, state.age()) for w in nights])
+    if new_acts:
+        state.append(schema.REALISE, [activity_to_row(a, state.current_week()) for a in new_acts])
+    step(1.0, date.today())
+    return len(nights), len(new_acts)
+
+
+def _history() -> None:
+    st.markdown("#### 🔄 Synchroniser")
+    st.caption("Importe tes nuits (sommeil, VFC, pouls au repos, Body Battery, stress) et tes activités. Sans doublon : tu peux synchroniser aussi souvent que tu veux.")
     if state.is_demo():
-        st.info("Mode démo : tes données remplaceront l'athlète simulé **dans ta session uniquement**. Rien n'est enregistré ailleurs, tout disparaît quand tu fermes l'onglet.")
+        st.caption("Mode démo : tes données remplacent l'athlète simulé **dans ta session uniquement**, rien n'est enregistré ailleurs.")
     c1, c2 = st.columns([2, 1], vertical_alignment="bottom")
     days = c1.select_slider("Période", options=[14, 30, 45, 60, 90], value=60, format_func=lambda d: f"{d} derniers jours")
     if not c2.button("🔄 Synchroniser", type="primary", width="stretch"):
         return
-    if state.is_demo() and not st.session_state.get("demo_replaced"):
-        state.storage().reset()
-        st.session_state["demo_replaced"] = True
-        state.clear_cache()
     bar = st.progress(0.0, text="Lecture des nuits…")
     try:
-        nights = garmin.fetch_history(days, skip=state.checkin_dates(), progress=lambda p, d: bar.progress(p * 0.8, text=f"Nuit du {d:%d/%m}…"))
-        bar.progress(0.85, text="Lecture des activités…")
-        acts = garmin.fetch_activities(date.today() - timedelta(days=days - 1), date.today())
+        n, a = run_sync(days, progress=lambda p, d: bar.progress(p, text=f"Nuit du {d:%d/%m}…"))
     except GarminError as exc:
         bar.empty()
         st.error(str(exc))
         return
-    already = state.imported_activity_ids()
-    new_acts = [a for a in acts if a.activity_id not in already]
-    semaine = state.current_week()
-    if nights:
-        state.append(schema.CHECKIN, [wellness_to_checkin_row(w, state.age()) for w in nights])
-    if new_acts:
-        state.append(schema.REALISE, [activity_to_row(a, semaine) for a in new_acts])
-    bar.progress(1.0, text="Terminé")
-    st.success(f"{len(nights)} nuit(s) et {len(new_acts)} activité(s) importées. Ouvre 🏠 Accueil, 😴 Sommeil & VFC ou 🛡️ Risque pour les analyses.")
+    bar.empty()
+    st.success(f"{n} nuit(s) et {a} activité(s) importées.")
 
 
 def _session_tools() -> None:
     garmin = state.garmin()
-    with st.expander("⚙️ Session & déploiement"):
-        st.markdown(
-            "Pour te reconnecter automatiquement (et éviter le MFA à chaque démarrage, notamment sur Streamlit Cloud), "
-            "copie ce jeton dans tes secrets sous la clé `GARMIN_TOKENS`. **Il donne accès à ton compte Garmin : "
-            "ne le partage jamais et ne le commite pas.**"
-        )
-        if st.toggle("Afficher le jeton de session"):
-            st.code(garmin.tokens() or "", language="json")
-        if st.button("Se déconnecter de Garmin"):
-            garmin.logout()
-            for k in ("garmin_wellness", "garmin_activities"):
-                st.session_state.pop(k, None)
-            st.rerun()
+    st.markdown("**⚙️ Session & déploiement**")
+    st.markdown(
+        "Pour te reconnecter automatiquement (et éviter le MFA à chaque démarrage, notamment sur Streamlit Cloud), "
+        "copie ce jeton dans tes secrets sous la clé `GARMIN_TOKENS`. **Il donne accès à ton compte Garmin : "
+        "ne le partage jamais et ne le commite pas.**"
+    )
+    if st.toggle("Afficher le jeton de session"):
+        st.code(garmin.tokens() or "", language="json")
+    if st.button("Se déconnecter de Garmin"):
+        garmin.logout()
+        for k in ("garmin_wellness", "garmin_activities"):
+            st.session_state.pop(k, None)
+        st.rerun()
 
 
-def render() -> None:
-    st.title("⌚ Garmin Connect")
+def render(embedded: bool = False) -> None:
+    if not embedded:
+        st.title("⌚ Garmin Connect")
     garmin = state.garmin()
     if not garmin.connected:
         _login_form()
         return
-    st.success(f"Connecté à Garmin Connect — {garmin.display_name} · 🔒 accès en lecture seule (rien n'est jamais modifié sur ton compte)")
+    st.success(f"Connecté — {garmin.display_name} · 🔒 lecture seule : rien n'est jamais modifié sur ton compte Garmin.")
     _history()
-    st.divider()
-    _wellness()
-    st.divider()
-    _activities()
-    st.divider()
-    _session_tools()
+    with st.expander("Avancé : nuit précise, choix des activités, jeton de session"):
+        _wellness()
+        st.divider()
+        _activities()
+        st.divider()
+        _session_tools()

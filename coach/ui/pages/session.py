@@ -83,11 +83,12 @@ def _zones_inputs(duree: int) -> list[int]:
     return values
 
 
-def render() -> None:
-    st.title("🏃 Ma Séance du Jour")
+def render(embedded: bool = False) -> None:
+    if not embedded:
+        st.title("🏃 Ma Séance du Jour")
     programme = state.load(schema.PROGRAMME)
     if programme.empty:
-        st.info("Ton programme est vide. Crée des séances dans **Coach IA & Programme** (ou charge les données de démo depuis la barre latérale).")
+        st.info("Ton programme est vide : crée tes séances dans l'onglet **Programme** ou demande-en une au **Coach IA**.")
         return
 
     weeks = sorted(int(w) for w in programme["Semaine"].dropna().unique())
