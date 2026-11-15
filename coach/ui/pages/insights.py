@@ -85,8 +85,8 @@ def render() -> None:
             c = st.columns(4)
             c[0].metric("Fitness (CTL)", f"{last.CTL:.0f}", f"{last.CTL - pmc.CTL.iloc[-8]:+.1f} / 7 j")
             c[1].metric("Fatigue (ATL)", f"{last.ATL:.0f}")
-            c[2].metric("Forme (TSB)", f"{last.TSB:+.0f}", tsb_label(last.TSB), delta_color="off")
-            c[3].metric("ACWR", f"{load.acwr:.2f}" if load.acwr else "—", load.label, delta_color="off")
+            c[2].metric("Forme (TSB)", f"{last.TSB:+.0f}", tsb_label(last.TSB), delta_color="off", delta_arrow="off")
+            c[3].metric("ACWR", f"{load.acwr:.2f}" if load.acwr else "—", load.label, delta_color="off", delta_arrow="off")
 
             view = pmc.tail(120)
             fig = go.Figure()

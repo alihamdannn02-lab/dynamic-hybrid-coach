@@ -56,10 +56,12 @@ def _garmin_block() -> None:
         w = st.session_state.get("garmin_wellness")
         if w and w.date == date.today().isoformat():
             m = st.columns(4)
-            m[0].metric("Sommeil", f"{w.sommeil_h} h" if w.sommeil_h else "—", f"score {w.score_sommeil}" if w.score_sommeil else None, delta_color="off")
-            m[1].metric("VFC nuit", f"{w.vfc} ms" if w.vfc else "—", w.vfc_status.title() if w.vfc_status else None, delta_color="off")
+            m[0].metric("Sommeil", f"{w.sommeil_h} h" if w.sommeil_h else "—", f"score {w.score_sommeil}" if w.score_sommeil else None, delta_color="off", delta_arrow="off")
+            m[1].metric("VFC nuit", f"{w.vfc} ms" if w.vfc else "—", w.vfc_status.title() if w.vfc_status else None, delta_color="off", delta_arrow="off")
             m[2].metric("Body Battery", w.body_battery if w.body_battery is not None else "—")
-            m[3].metric("Training Readiness", w.training_readiness if w.training_readiness is not None else "—", (w.training_readiness_level or "").title() or None, delta_color="off")
+            m[3].metric(
+                "Training Readiness", w.training_readiness if w.training_readiness is not None else "—", (w.training_readiness_level or "").title() or None, delta_color="off", delta_arrow="off"
+            )
             if w.errors:
                 st.caption("Non disponible sur ce modèle / cette nuit : " + ", ".join(w.errors))
 
@@ -144,6 +146,9 @@ def render() -> None:
             w.score_sommeil if from_garmin and w.score_sommeil is not None else "",
             st.session_state.get("ck_source", "Manuel"),
         ]
+        if from_garmin:  # phases et horaires de la nuit
+            row += [w.deep_min, w.light_min, w.rem_min, w.awake_min, w.coucher, w.lever, w.stress]
+            row = ["" if v is None else v for v in row]
         try:
             state.append(schema.CHECKIN, [row])
         except Exception as exc:  # noqa: BLE001

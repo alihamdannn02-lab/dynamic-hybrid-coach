@@ -8,13 +8,25 @@ from coach.garmin import (
     map_sport,
     parse_activity,
     parse_hrv,
+    parse_race_predictions,
     parse_rhr,
     parse_sleep,
+    parse_sleep_details,
     parse_training_readiness,
+    wellness_to_checkin_row,
 )
 
 SLEEP = {
-    "dailySleepDTO": {"sleepTimeSeconds": 27000, "sleepScores": {"overall": {"value": 84}}},
+    "dailySleepDTO": {
+        "sleepTimeSeconds": 27000,
+        "sleepScores": {"overall": {"value": 84}},
+        "deepSleepSeconds": 5400,
+        "lightSleepSeconds": 14400,
+        "remSleepSeconds": 7200,
+        "awakeSleepSeconds": 1200,
+        "sleepStartTimestampLocal": 1762814700000,  # 2025-11-10 22:45 (heure locale encodée en UTC)
+        "sleepEndTimestampLocal": 1762843200000,  # 2025-11-11 06:40
+    },
     "avgOvernightHrv": 61.0,
     "restingHeartRate": 46,
 }
@@ -42,6 +54,46 @@ def test_parse_sleep():
     assert parse_sleep(SLEEP) == (7.5, 84, 61, 46)
     assert parse_sleep(None) == (None, None, None, None)
     assert parse_sleep({}) == (None, None, None, None)
+
+
+def test_parse_sleep_details():
+    assert parse_sleep_details(SLEEP) == {"deep_min": 90, "light_min": 240, "rem_min": 120, "awake_min": 20, "coucher": "22:45", "lever": "06:40"}
+    assert parse_sleep_details(None) == {}
+    assert parse_sleep_details({"dailySleepDTO": {}})["deep_min"] is None
+
+
+def test_wellness_to_checkin_row_matches_schema():
+    w = Wellness(date="2026-11-10", sommeil_h=7.5, vfc=63, fcr=46, body_battery=80, deep_min=90, coucher="22:45")
+    rec = dict(zip(schema.CHECKIN_COLUMNS, wellness_to_checkin_row(w, age=30)))
+    assert len(rec) == len(schema.CHECKIN_COLUMNS)
+    assert (rec["Heures_Sommeil"], rec["VFC"], rec["Niveau_Energie"], rec["Source"]) == (7.5, 63, 8, "Garmin")
+    assert rec["Deep_Min"] == 90 and rec["Coucher"] == "22:45" and rec["REM_Min"] == ""
+
+
+def test_parse_race_predictions():
+    data = {"calendarDate": "2026-11-10", "time5K": 1290, "time10K": 2700, "timeHalfMarathon": 6000, "timeMarathon": 12600}
+    assert parse_race_predictions(data) == {"5 km": 21.5, "10 km": 45.0, "Semi-marathon": 100.0, "Marathon": 210.0}
+    assert parse_race_predictions([data])["10 km"] == 45.0
+    assert parse_race_predictions(None) == {}
+
+
+def test_garmin_integration_is_read_only():
+    """Garantie : l'application ne modifie jamais rien sur le compte Garmin (ni, par
+    ricochet, les titres / descriptions synchronisés vers Strava)."""
+    import ast
+    import pathlib
+
+    allowed = {"login", "logout", "resume_login", "client"}  # client.dumps() : sérialisation locale du jeton
+    tree = ast.parse(pathlib.Path("coach/garmin.py").read_text(encoding="utf-8"))
+    called = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Attribute | ast.Name):
+            owner = node.value.attr if isinstance(node.value, ast.Attribute) else node.value.id
+            if owner in {"api", "_pending"}:
+                called.add(node.attr)
+    assert called, "aucun appel à l'API Garmin détecté : le test ne voit plus le code"
+    writes = {name for name in called if not name.startswith("get_") and name not in allowed}
+    assert not writes, f"appels Garmin non lecture seule : {writes}"
 
 
 def test_parse_hrv_and_rhr():

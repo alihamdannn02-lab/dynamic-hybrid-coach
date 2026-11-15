@@ -88,6 +88,28 @@ class LocalStorage:
             self._path(sheet).unlink(missing_ok=True)
 
 
+class MemoryStorage(LocalStorage):
+    """Stockage en mémoire, propre à une session de navigateur.
+
+    Utilisé par le mode démo public : un visiteur explore (et peut même saisir
+    des données ou connecter sa propre montre) sans jamais toucher la base réelle.
+    """
+
+    label = "Démo (mémoire)"
+
+    def __init__(self) -> None:  # noqa: D107 - pas de répertoire
+        self._tables: dict[str, list[list]] = {}
+
+    def _raw(self, sheet: str) -> list[list]:
+        return [list(r) for r in self._tables.get(sheet, [])]
+
+    def _write(self, sheet: str, rows: list[list]) -> None:
+        self._tables[sheet] = [[str(c) for c in r] for r in rows]
+
+    def reset(self) -> None:
+        self._tables.clear()
+
+
 # ---------------------------------------------------------------------------
 # Backend Google Sheets
 # ---------------------------------------------------------------------------

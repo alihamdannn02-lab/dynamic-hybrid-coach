@@ -8,7 +8,7 @@ import pandas as pd
 import streamlit as st
 
 from ... import schema
-from ...garmin import GarminError, activity_to_row
+from ...garmin import GarminError, activity_to_row, wellness_to_checkin_row
 from ...training_load import estimate_tss
 from .. import state
 
@@ -74,12 +74,12 @@ def _wellness() -> None:
         st.caption("Clique sur « Actualiser » pour récupérer sommeil, VFC, FC repos et Body Battery.")
         return
     m = st.columns(3)
-    m[0].metric("Sommeil", f"{w.sommeil_h} h" if w.sommeil_h else "—", f"Score {w.score_sommeil}" if w.score_sommeil else None, delta_color="off")
-    m[1].metric("VFC (nuit)", f"{w.vfc} ms" if w.vfc else "—", f"{w.vfc_status.title()} · 7 j {w.vfc_hebdo} ms" if w.vfc_status and w.vfc_hebdo else None, delta_color="off")
+    m[0].metric("Sommeil", f"{w.sommeil_h} h" if w.sommeil_h else "—", f"Score {w.score_sommeil}" if w.score_sommeil else None, delta_color="off", delta_arrow="off")
+    m[1].metric("VFC (nuit)", f"{w.vfc} ms" if w.vfc else "—", f"{w.vfc_status.title()} · 7 j {w.vfc_hebdo} ms" if w.vfc_status and w.vfc_hebdo else None, delta_color="off", delta_arrow="off")
     m[2].metric("FC repos", f"{w.fcr} bpm" if w.fcr else "—")
     m = st.columns(3)
     m[0].metric("Body Battery", w.body_battery if w.body_battery is not None else "—")
-    m[1].metric("Training Readiness", w.training_readiness if w.training_readiness is not None else "—", (w.training_readiness_level or "").title() or None, delta_color="off")
+    m[1].metric("Training Readiness", w.training_readiness if w.training_readiness is not None else "—", (w.training_readiness_level or "").title() or None, delta_color="off", delta_arrow="off")
     m[2].metric("Stress moyen", w.stress if w.stress is not None else "—")
     if w.errors:
         st.caption("Indisponible : " + ", ".join(w.errors))
@@ -160,6 +160,43 @@ def _activities() -> None:
             st.rerun()
 
 
+def _history() -> None:
+    garmin = state.garmin()
+    st.subheader("🗂️ Synchroniser mon historique")
+    st.caption(
+        "Importe d'un coup tes nuits (durée, phases, horaires, VFC, FC repos, Body Battery, stress) et tes activités : "
+        "baselines personnelles, indice de risque et modèle prédictif sont actifs immédiatement."
+    )
+    if state.is_demo():
+        st.info("Mode démo : tes données remplaceront l'athlète simulé **dans ta session uniquement**. Rien n'est enregistré ailleurs, tout disparaît quand tu fermes l'onglet.")
+    c1, c2 = st.columns([2, 1], vertical_alignment="bottom")
+    days = c1.select_slider("Période", options=[14, 30, 45, 60, 90], value=60, format_func=lambda d: f"{d} derniers jours")
+    if not c2.button("🔄 Synchroniser", type="primary", width="stretch"):
+        return
+    if state.is_demo() and not st.session_state.get("demo_replaced"):
+        state.storage().reset()
+        st.session_state["demo_replaced"] = True
+        state.clear_cache()
+    bar = st.progress(0.0, text="Lecture des nuits…")
+    try:
+        nights = garmin.fetch_history(days, skip=state.checkin_dates(), progress=lambda p, d: bar.progress(p * 0.8, text=f"Nuit du {d:%d/%m}…"))
+        bar.progress(0.85, text="Lecture des activités…")
+        acts = garmin.fetch_activities(date.today() - timedelta(days=days - 1), date.today())
+    except GarminError as exc:
+        bar.empty()
+        st.error(str(exc))
+        return
+    already = state.imported_activity_ids()
+    new_acts = [a for a in acts if a.activity_id not in already]
+    semaine = state.current_week()
+    if nights:
+        state.append(schema.CHECKIN, [wellness_to_checkin_row(w, state.age()) for w in nights])
+    if new_acts:
+        state.append(schema.REALISE, [activity_to_row(a, semaine) for a in new_acts])
+    bar.progress(1.0, text="Terminé")
+    st.success(f"{len(nights)} nuit(s) et {len(new_acts)} activité(s) importées. Ouvre 🏠 Accueil, 😴 Sommeil & VFC ou 🛡️ Risque pour les analyses.")
+
+
 def _session_tools() -> None:
     garmin = state.garmin()
     with st.expander("⚙️ Session & déploiement"):
@@ -183,7 +220,9 @@ def render() -> None:
     if not garmin.connected:
         _login_form()
         return
-    st.success(f"Connecté à Garmin Connect — {garmin.display_name}")
+    st.success(f"Connecté à Garmin Connect — {garmin.display_name} · 🔒 accès en lecture seule (rien n'est jamais modifié sur ton compte)")
+    _history()
+    st.divider()
     _wellness()
     st.divider()
     _activities()
